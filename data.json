@@ -1,0 +1,42 @@
+[
+  {
+    "id": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d",
+    "robloxUserId": "1",
+    "username": "Roblox",
+    "wins": 12,
+    "avatarUrl": "https://tr.rbxcdn.com/53eb9b17fe1432a802c7390f71966a36/420/420/Image/Png",
+    "createdAt": "2024-12-10T10:00:00.000Z"
+  },
+  {
+    "id": "1b9d6bcd-bbfd-4b2d-9b5d-2b8d7b3dcb6e",
+    "robloxUserId": "156",
+    "username": "Builderman",
+    "wins": 13,
+    "avatarUrl": "https://tr.rbxcdn.com/f104d9a6c9d7846505321f64f4347789/420/420/Image/Png",
+    "createdAt": "2024-12-10T10:05:00.000Z"
+  },
+  {
+    "id": "17656595-c617-459c-a06f-4f8b8d26e4d7",
+    "robloxUserId": "4355339447",
+    "username": "TryTheMoon",
+    "wins": 2,
+    "avatarUrl": "https://tr.rbxcdn.com/30DAY-AvatarHeadshot-9290ABFB192093CE33D132DA6D646CB0-Png/420/420/AvatarHeadshot/Png/noFilter",
+    "createdAt": "2025-12-11T04:55:12.859Z"
+  },
+  {
+    "id": "67c9c6fd-9f43-4979-b24c-6347b2c574ab",
+    "robloxUserId": "7651761336",
+    "username": "RorNothing",
+    "wins": 3,
+    "avatarUrl": "https://tr.rbxcdn.com/30DAY-AvatarHeadshot-0F2A90DED6D7165487001D96ECAE08D1-Png/420/420/AvatarHeadshot/Png/noFilter",
+    "createdAt": "2025-12-11T05:14:44.126Z"
+  },
+  {
+    "id": "0f60dc4c-289f-4483-a4ad-8652accdfe51",
+    "robloxUserId": "4387512582",
+    "username": "Mazz4444",
+    "wins": 4,
+    "avatarUrl": "https://tr.rbxcdn.com/30DAY-AvatarHeadshot-789798716DD2AD6DCC672903C5F7D86A-Png/420/420/AvatarHeadshot/Png/noFilter",
+    "createdAt": "2025-12-11T05:31:15.206Z"
+  }
+]
