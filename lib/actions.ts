@@ -45,7 +45,8 @@ export async function approvePendingWinnerAction(username: string) {
     const newPlayer: Player = {
         id: uuidv4(),
         robloxUserId: robloxUser.id.toString(),
-        username: robloxUser.displayName || robloxUser.name,
+        username: robloxUser.name,
+        displayname: robloxUser.displayName,
         wins: pending.wins, // Use accrued wins
         avatarUrl: avatarUrl || '',
         createdAt: new Date().toISOString(),
@@ -72,7 +73,8 @@ export async function addPlayerAction(formData: FormData) {
     const newPlayer: Player = {
         id: uuidv4(),
         robloxUserId: robloxUser.id.toString(),
-        username: robloxUser.displayName || robloxUser.name,
+        username: robloxUser.name,
+        displayname: robloxUser.displayName,
         wins: 0,
         avatarUrl: avatarUrl || '', // Fallback or placeholder
         createdAt: new Date().toISOString(),

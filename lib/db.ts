@@ -10,6 +10,7 @@ export interface Player {
     id: string;
     robloxUserId: string;
     username: string;
+    displayname: string;
     wins: number;
     avatarUrl: string;
     createdAt: string;
@@ -60,6 +61,7 @@ export const db = {
                 id: p.id,
                 robloxUserId: p.roblox_user_id,
                 username: p.username,
+                displayname: p.displayname,
                 wins: p.wins,
                 avatarUrl: p.avatar_url,
                 createdAt: p.created_at,
@@ -144,6 +146,7 @@ export const db = {
                     id: player.id,
                     roblox_user_id: player.robloxUserId,
                     username: player.username,
+                    displayname: player.displayname,
                     wins: player.wins,
                     avatar_url: player.avatarUrl,
                     created_at: player.createdAt

@@ -105,7 +105,7 @@ function PodiumItem({ player, rank, delay }: { player: Player | undefined, rank:
             {/* Info */}
             <div className="text-center mt-3">
                 <h3 className="font-bold text-slate-800 text-sm sm:text-base leading-tight truncate w-full px-1">
-                    {player.username}
+                    {player.displayname}
                 </h3>
                 <p className="text-xs text-slate-400 mb-1">@{player.username}</p>
                 <div className="flex items-center justify-center gap-1 text-slate-800 font-bold">

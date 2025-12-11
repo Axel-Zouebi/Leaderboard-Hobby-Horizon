@@ -55,7 +55,7 @@ export function LeaderboardRow({ player, rank }: LeaderboardRowProps) {
                 {/* Name */}
                 <div className="flex-1">
                     <h3 className="font-semibold text-slate-900 leading-tight">
-                        {player.username}
+                        {player.displayname}
                     </h3>
                     <p className="text-xs text-slate-400">@{player.username}</p>
                 </div>

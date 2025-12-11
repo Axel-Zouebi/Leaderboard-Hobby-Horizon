@@ -110,8 +110,8 @@ export default async function AdminPage() {
                             </div>
 
                             <div className="flex-1">
-                                <div className="font-semibold text-lg">{player.username}</div>
-                                <div className="text-sm text-gray-400">Wins: {player.wins}</div>
+                                <div className="font-semibold text-lg">{player.displayname || player.username}</div>
+                                <div className="text-sm text-gray-400">@{player.username} • Wins: {player.wins}</div>
                             </div>
 
                             <div className="flex items-center gap-2">
