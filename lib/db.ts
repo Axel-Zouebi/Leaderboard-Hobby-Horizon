@@ -190,5 +190,50 @@ export const db = {
             const newPlayers = players.filter(p => p.id !== id);
             writeLocalData(newPlayers);
         }
+    },
+
+    getGameStatus: async (): Promise<string> => {
+        if (supabase) {
+            const { data, error } = await supabase
+                .from('game_settings')
+                .select('value')
+                .eq('key', 'status')
+                .single();
+
+            if (error && error.code !== 'PGRST116') { // PGRST116 is "The result contains 0 rows"
+                console.warn('Error fetching game status:', error);
+            }
+            return data?.value || 'STOP';
+        } else {
+            const SETTINGS_FILE = path.join(process.cwd(), 'settings.json');
+            if (!fs.existsSync(SETTINGS_FILE)) return 'STOP';
+            try {
+                const settings = JSON.parse(fs.readFileSync(SETTINGS_FILE, 'utf-8'));
+                return settings.status || 'STOP';
+            } catch {
+                return 'STOP';
+            }
+        }
+    },
+
+    setGameStatus: async (status: string): Promise<void> => {
+        if (supabase) {
+            // Upsert the status
+            const { error } = await supabase
+                .from('game_settings')
+                .upsert({ key: 'status', value: status }, { onConflict: 'key' });
+
+            if (error) throw error;
+        } else {
+            const SETTINGS_FILE = path.join(process.cwd(), 'settings.json');
+            let settings: any = {};
+            if (fs.existsSync(SETTINGS_FILE)) {
+                try {
+                    settings = JSON.parse(fs.readFileSync(SETTINGS_FILE, 'utf-8'));
+                } catch { }
+            }
+            settings.status = status;
+            fs.writeFileSync(SETTINGS_FILE, JSON.stringify(settings, null, 2));
+        }
     }
 };

@@ -1,4 +1,6 @@
 import { getPlayers, getPendingWinners, addPlayerAction, deletePlayerAction, updateWinsAction, approvePendingWinnerAction } from '../../lib/actions';
+import { db } from '@/lib/db';
+import GameControl from '@/components/GameControl';
 import Image from 'next/image';
 import { Trash2, Plus, Minus, UserPlus, CheckCircle } from 'lucide-react';
 
@@ -34,6 +36,9 @@ export default async function AdminPage() {
                         View Leaderboard →
                     </a>
                 </header>
+
+                {/* Game Control Section */}
+                <GameControl initialStatus={await db.getGameStatus()} />
 
                 {/* Add Player Form */}
                 <div className="glass-panel p-6">
