@@ -46,7 +46,7 @@ function readLocalData(): Player[] {
             needsMigration = true;
             updates.points = 0;
         }
-        if (needsMigration && Object.keys(updates).length > 0) {
+        if (Object.keys(updates).length > 0) {
             return { ...player, ...updates };
         }
         return player;
@@ -86,7 +86,7 @@ function readLocalPendingData(): PendingWinner[] {
             needsMigration = true;
             updates.points = 0;
         }
-        if (needsMigration && Object.keys(updates).length > 0) {
+        if (Object.keys(updates).length > 0) {
             return { ...p, ...updates };
         }
         return p;
