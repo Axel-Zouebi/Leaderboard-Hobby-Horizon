@@ -7,49 +7,74 @@ import { getCurrentDay } from '@/lib/utils';
 export async function POST(request: Request) {
     try {
         const body = await request.json();
-        const { username } = body;
+        
+        // Support both old format (single username) and new format (top 3 players)
+        let players: Array<{ username: string; rank: number }> = [];
+        
+        if (body.username) {
+            // Legacy format: single winner
+            players = [{ username: body.username, rank: 1 }];
+        } else if (body.first || body.second || body.third) {
+            // New format: explicit first/second/third
+            if (body.first) players.push({ username: body.first, rank: 1 });
+            if (body.second) players.push({ username: body.second, rank: 2 });
+            if (body.third) players.push({ username: body.third, rank: 3 });
+        } else if (Array.isArray(body.players)) {
+            // New format: array of players with rank
+            players = body.players;
+        } else {
+            return NextResponse.json({ error: 'Invalid request format. Expected username, {first, second, third}, or players array' }, { status: 400 });
+        }
 
-        if (!username || typeof username !== 'string') {
-            return NextResponse.json({ error: 'Username is required' }, { status: 400 });
+        if (players.length === 0) {
+            return NextResponse.json({ error: 'No players provided' }, { status: 400 });
         }
 
         // Detect current day (Saturday or Sunday)
         const currentDay = getCurrentDay();
+        const day = currentDay || 'saturday';
+        
         if (!currentDay) {
-            console.warn(`[Webhook] Received win on non-weekend day for: ${username}`);
-            // Still process but default to saturday
-            const day = 'saturday';
-            const players = await db.getPlayers(day);
-            const existingPlayer = players.find(p => p.username.toLowerCase() === username.toLowerCase());
+            console.warn(`[Webhook] Received results on non-weekend day, defaulting to saturday`);
+        }
 
-            if (existingPlayer) {
-                const newWins = existingPlayer.wins + 1;
-                await db.updatePlayer(existingPlayer.id, { wins: newWins });
-                console.log(`[Webhook] Incremented wins for existing player: ${username} (${day})`);
-            } else {
-                await db.incrementPendingWinner(username, day);
-                console.log(`[Webhook] Added/Incremented pending winner: ${username} (${day})`);
+        // Process each player
+        for (const { username, rank } of players) {
+            if (!username || typeof username !== 'string') {
+                console.warn(`[Webhook] Invalid username for rank ${rank}, skipping`);
+                continue;
             }
-        } else {
-            // Filter players by current day
-            const players = await db.getPlayers(currentDay);
-            const existingPlayer = players.find(p => p.username.toLowerCase() === username.toLowerCase());
+
+            // Determine points and wins based on rank
+            let pointsToAdd = 0;
+            let winsToAdd = 0;
+            
+            if (rank === 1) {
+                pointsToAdd = 100;
+                winsToAdd = 1;
+            } else if (rank === 2) {
+                pointsToAdd = 70;
+            } else if (rank === 3) {
+                pointsToAdd = 50;
+            }
+
+            const allPlayers = await db.getPlayers(day);
+            const existingPlayer = allPlayers.find(p => p.username.toLowerCase() === username.toLowerCase());
 
             if (existingPlayer) {
-                // Player exists for this day, increment wins
-                const newWins = existingPlayer.wins + 1;
-                await db.updatePlayer(existingPlayer.id, { wins: newWins });
-                console.log(`[Webhook] Incremented wins for existing player: ${username} (${currentDay})`);
+                // Player exists, update wins and points
+                const newWins = (existingPlayer.wins || 0) + winsToAdd;
+                const newPoints = (existingPlayer.points || 0) + pointsToAdd;
+                await db.updatePlayer(existingPlayer.id, { wins: newWins, points: newPoints });
+                console.log(`[Webhook] Updated player: ${username} (${day}) - +${winsToAdd} wins, +${pointsToAdd} points`);
             } else {
-                // Player does not exist for this day, add to pending
-                await db.incrementPendingWinner(username, currentDay);
-                console.log(`[Webhook] Added/Incremented pending winner: ${username} (${currentDay})`);
+                // Player does not exist, add to pending
+                await db.incrementPendingWinner(username, day, winsToAdd, pointsToAdd);
+                console.log(`[Webhook] Added/Incremented pending: ${username} (${day}) - +${winsToAdd} wins, +${pointsToAdd} points`);
             }
         }
 
-        // Revalidate pages so UI updates immediately (if possible, though this is API route)
-        // Note: revalidation might not work perfectly from API route across all hosting environments depending on config,
-        // but it helps for ISR/Server Actions integration.
+        // Revalidate pages so UI updates immediately
         revalidatePath('/leaderboard');
         revalidatePath('/admin');
 

@@ -60,13 +60,21 @@ export function LeaderboardRow({ player, rank }: LeaderboardRowProps) {
                     <p className="text-xs text-slate-400">@{player.username}</p>
                 </div>
 
-                {/* Wins */}
-                <div className="text-right flex items-center gap-2">
-                    <span className="text-amber-500">
-                        <Trophy size={16} fill="currentColor" />
-                    </span>
-                    <div className="font-bold text-slate-800 tabular-nums text-lg">
-                        {player.wins}
+                {/* Points and Wins */}
+                <div className="text-right">
+                    <div className="flex items-center gap-2 justify-end mb-1">
+                        <span className="text-blue-500 font-bold text-lg tabular-nums">
+                            {player.points || 0}
+                        </span>
+                        <span className="text-xs text-slate-500">pts</span>
+                    </div>
+                    <div className="flex items-center gap-2 justify-end">
+                        <span className="text-amber-500">
+                            <Trophy size={14} fill="currentColor" />
+                        </span>
+                        <div className="font-semibold text-slate-600 tabular-nums text-sm">
+                            {player.wins || 0}
+                        </div>
                     </div>
                 </div>
             </div>

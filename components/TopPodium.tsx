@@ -108,12 +108,19 @@ function PodiumItem({ player, rank, delay }: { player: Player | undefined, rank:
                     {player.displayname}
                 </h3>
                 <p className="text-xs text-slate-400 mb-1">@{player.username}</p>
-                <div className="flex items-center justify-center gap-1 text-slate-800 font-bold">
-                    <span className="text-amber-500">
-                        {/* Heart icon or just similar color */}
-                        <Trophy size={12} fill="currentColor" />
-                    </span>
-                    {player.wins}
+                <div className="flex flex-col items-center gap-1">
+                    <div className="flex items-center justify-center gap-1 text-slate-800 font-bold">
+                        <span className="text-blue-500 font-bold text-base tabular-nums">
+                            {player.points || 0}
+                        </span>
+                        <span className="text-xs text-slate-500">pts</span>
+                    </div>
+                    <div className="flex items-center justify-center gap-1 text-slate-600 font-semibold text-sm">
+                        <span className="text-amber-500">
+                            <Trophy size={10} fill="currentColor" />
+                        </span>
+                        {player.wins || 0}
+                    </div>
                 </div>
             </div>
         </motion.div>

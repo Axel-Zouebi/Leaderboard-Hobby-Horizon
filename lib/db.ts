@@ -12,6 +12,7 @@ export interface Player {
     username: string;
     displayname: string;
     wins: number;
+    points: number;
     avatarUrl: string;
     createdAt: string;
     day: 'saturday' | 'sunday';
@@ -20,6 +21,7 @@ export interface Player {
 export interface PendingWinner {
     username: string;
     wins: number;
+    points: number;
     day: 'saturday' | 'sunday';
 }
 
@@ -32,11 +34,20 @@ function readLocalData(): Player[] {
     const players: any[] = JSON.parse(data);
     
     // Migration: Add day field if missing (default to saturday)
+    // Migration: Add points field if missing (default to 0)
     let needsMigration = false;
     const migratedPlayers = players.map((player: any) => {
+        const updates: any = {};
         if (!player.day) {
             needsMigration = true;
-            return { ...player, day: 'saturday' as const };
+            updates.day = 'saturday' as const;
+        }
+        if (player.points === undefined) {
+            needsMigration = true;
+            updates.points = 0;
+        }
+        if (needsMigration && Object.keys(updates).length > 0) {
+            return { ...player, ...updates };
         }
         return player;
     });
@@ -63,11 +74,20 @@ function readLocalPendingData(): PendingWinner[] {
     const pending: any[] = JSON.parse(data);
     
     // Migration: Add day field if missing (default to saturday)
+    // Migration: Add points field if missing (default to 0)
     let needsMigration = false;
     const migratedPending = pending.map((p: any) => {
+        const updates: any = {};
         if (!p.day) {
             needsMigration = true;
-            return { ...p, day: 'saturday' as const };
+            updates.day = 'saturday' as const;
+        }
+        if (p.points === undefined) {
+            needsMigration = true;
+            updates.points = 0;
+        }
+        if (needsMigration && Object.keys(updates).length > 0) {
+            return { ...p, ...updates };
         }
         return p;
     });
@@ -96,25 +116,34 @@ export const db = {
                 query = query.eq('day', day);
             }
             
-            const { data, error } = await query.order('wins', { ascending: false });
+            const { data, error } = await query.order('points', { ascending: false }).order('wins', { ascending: false });
             if (error) throw error;
-            return (data || []).map((p: any) => ({
+            const players = (data || []).map((p: any) => ({
                 id: p.id,
                 robloxUserId: p.roblox_user_id,
                 username: p.username,
                 displayname: p.displayname,
-                wins: p.wins,
+                wins: p.wins || 0,
+                points: p.points || 0,
                 avatarUrl: p.avatar_url,
                 createdAt: p.created_at,
                 day: p.day || 'saturday', // Default to saturday for migration
             }));
+            // Sort by points DESC, then wins DESC (Supabase order might not handle multiple sorts correctly)
+            return players.sort((a, b) => {
+                if (b.points !== a.points) return b.points - a.points;
+                return b.wins - a.wins;
+            });
         } else {
             // Local fallback
             let players = readLocalData();
             if (day) {
                 players = players.filter(p => p.day === day);
             }
-            return players.sort((a, b) => b.wins - a.wins);
+            return players.sort((a, b) => {
+                if (b.points !== a.points) return b.points - a.points;
+                return b.wins - a.wins;
+            });
         }
     },
 
@@ -138,7 +167,8 @@ export const db = {
 
             return (data || []).map((p: any) => ({
                 username: p.username,
-                wins: p.wins,
+                wins: p.wins || 0,
+                points: p.points || 0,
                 day: p.day || 'saturday', // Default to saturday for migration
             }));
         } else {
@@ -150,12 +180,12 @@ export const db = {
         }
     },
 
-    incrementPendingWinner: async (username: string, day: 'saturday' | 'sunday'): Promise<void> => {
+    incrementPendingWinner: async (username: string, day: 'saturday' | 'sunday', wins: number = 0, points: number = 0): Promise<void> => {
         if (supabase) {
             // Try to find existing for this day
             const { data } = await supabase
                 .from('pending_winners')
-                .select('wins')
+                .select('wins, points')
                 .eq('username', username)
                 .eq('day', day)
                 .single();
@@ -163,21 +193,25 @@ export const db = {
             if (data) {
                 await supabase
                     .from('pending_winners')
-                    .update({ wins: data.wins + 1 })
+                    .update({ 
+                        wins: (data.wins || 0) + wins,
+                        points: (data.points || 0) + points
+                    })
                     .eq('username', username)
                     .eq('day', day);
             } else {
                 await supabase
                     .from('pending_winners')
-                    .insert([{ username, wins: 1, day }]);
+                    .insert([{ username, wins, points, day }]);
             }
         } else {
             const pending = readLocalPendingData();
             const existing = pending.find(p => p.username === username && p.day === day);
             if (existing) {
-                existing.wins++;
+                existing.wins = (existing.wins || 0) + wins;
+                existing.points = (existing.points || 0) + points;
             } else {
-                pending.push({ username, wins: 1, day });
+                pending.push({ username, wins, points, day });
             }
             writeLocalPendingData(pending);
         }
@@ -213,7 +247,8 @@ export const db = {
                     roblox_user_id: player.robloxUserId,
                     username: player.username,
                     displayname: player.displayname,
-                    wins: player.wins,
+                    wins: player.wins || 0,
+                    points: player.points || 0,
                     avatar_url: player.avatarUrl,
                     created_at: player.createdAt,
                     day: player.day
@@ -234,6 +269,7 @@ export const db = {
         if (supabase) {
             const dbUpdates: any = {};
             if (updates.wins !== undefined) dbUpdates.wins = updates.wins;
+            if (updates.points !== undefined) dbUpdates.points = updates.points;
             if (updates.avatarUrl) dbUpdates.avatar_url = updates.avatarUrl;
             if (updates.day) dbUpdates.day = updates.day;
 

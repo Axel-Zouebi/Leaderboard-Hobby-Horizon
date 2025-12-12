@@ -29,7 +29,7 @@ export async function getPendingWinners(day?: 'saturday' | 'sunday') {
 }
 
 export async function approvePendingWinnerAction(username: string, day: 'saturday' | 'sunday') {
-    // 1. Get the pending winner info to know how many wins they have
+    // 1. Get the pending winner info to know how many wins and points they have
     const pendingList = await db.getPendingWinners(day);
     const pending = pendingList.find(p => p.username === username && p.day === day);
     if (!pending) return;
@@ -42,13 +42,14 @@ export async function approvePendingWinnerAction(username: string, day: 'saturda
     }
     const avatarUrl = await fetchRobloxAvatar(robloxUser.id);
 
-    // 3. Create real player
+    // 3. Create real player with accrued wins and points
     const newPlayer: Player = {
         id: uuidv4(),
         robloxUserId: robloxUser.id.toString(),
         username: robloxUser.name,
         displayname: robloxUser.displayName,
-        wins: pending.wins, // Use accrued wins
+        wins: pending.wins || 0, // Use accrued wins
+        points: pending.points || 0, // Use accrued points
         avatarUrl: avatarUrl || '',
         createdAt: new Date().toISOString(),
         day: pending.day,
@@ -84,6 +85,7 @@ export async function addPlayerAction(formData: FormData) {
         username: robloxUser.name,
         displayname: robloxUser.displayName,
         wins: 0,
+        points: 0,
         avatarUrl: avatarUrl || '', // Fallback or placeholder
         createdAt: new Date().toISOString(),
         day: day,
@@ -106,8 +108,19 @@ export async function updateWinsAction(id: string, increment: number) {
     const player = players.find(p => p.id === id);
     if (!player) return;
 
-    const newWins = Math.max(0, player.wins + increment);
+    const newWins = Math.max(0, (player.wins || 0) + increment);
     await db.updatePlayer(id, { wins: newWins });
+    revalidatePath('/admin');
+    revalidatePath('/leaderboard');
+}
+
+export async function updatePointsAction(id: string, increment: number) {
+    const players = await db.getPlayers();
+    const player = players.find(p => p.id === id);
+    if (!player) return;
+
+    const newPoints = Math.max(0, (player.points || 0) + increment);
+    await db.updatePlayer(id, { points: newPoints });
     revalidatePath('/admin');
     revalidatePath('/leaderboard');
 }

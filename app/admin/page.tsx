@@ -1,4 +1,4 @@
-import { getPlayers, getPendingWinners, addPlayerAction, deletePlayerAction, updateWinsAction, approvePendingWinnerAction } from '../../lib/actions';
+import { getPlayers, getPendingWinners, addPlayerAction, deletePlayerAction, updateWinsAction, updatePointsAction, approvePendingWinnerAction } from '../../lib/actions';
 import { db } from '@/lib/db';
 import GameControl from '@/components/GameControl';
 import { AdminDayTabs } from '@/components/AdminDayTabs';
@@ -115,13 +115,18 @@ export default async function AdminPage({
                                 <div className="flex-1">
                                     <div className="font-semibold text-lg text-red-200">{pending.username}</div>
                                     <div className="text-sm text-red-400/70">
-                                        Unregistered Wins: {pending.wins} • Day: {pending.day === 'saturday' ? 'Saturday' : 'Sunday'}
+                                        Unregistered Wins: {pending.wins || 0} • Unregistered Points: {pending.points || 0} • Day: {pending.day === 'saturday' ? 'Saturday' : 'Sunday'}
                                     </div>
                                 </div>
 
                                 <div className="flex items-center gap-4">
-                                    <div className="font-bold text-xl text-red-400 tabular-nums">
-                                        +{pending.wins}
+                                    <div className="text-right">
+                                        <div className="font-bold text-xl text-red-400 tabular-nums">
+                                            +{pending.wins || 0} wins
+                                        </div>
+                                        <div className="font-bold text-lg text-red-300 tabular-nums">
+                                            +{pending.points || 0} pts
+                                        </div>
                                     </div>
                                     <ActionButton action={approvePendingWinnerAction.bind(null, pending.username, pending.day)} variant="success">
                                         <CheckCircle className="w-5 h-5" />
@@ -152,22 +157,44 @@ export default async function AdminPage({
                             <div className="flex-1">
                                 <div className="font-semibold text-lg">{player.displayname || player.username}</div>
                                 <div className="text-sm text-gray-400">
-                                    @{player.username} • Wins: {player.wins} • Day: {player.day === 'saturday' ? 'Saturday' : 'Sunday'}
+                                    @{player.username} • Wins: {player.wins || 0} • Points: {player.points || 0} • Day: {player.day === 'saturday' ? 'Saturday' : 'Sunday'}
                                 </div>
                             </div>
 
                             <div className="flex items-center gap-2">
-                                <ActionButton action={updateWinsAction.bind(null, player.id, -1)} variant="secondary">
-                                    <Minus className="w-4 h-4" />
-                                </ActionButton>
-
-                                <div className="w-12 text-center font-bold text-xl tabular-nums">
-                                    {player.wins}
+                                {/* Wins Controls */}
+                                <div className="flex flex-col items-center gap-1">
+                                    <span className="text-xs text-gray-400">Wins</span>
+                                    <div className="flex items-center gap-1">
+                                        <ActionButton action={updateWinsAction.bind(null, player.id, -1)} variant="secondary">
+                                            <Minus className="w-4 h-4" />
+                                        </ActionButton>
+                                        <div className="w-12 text-center font-bold text-lg tabular-nums">
+                                            {player.wins || 0}
+                                        </div>
+                                        <ActionButton action={updateWinsAction.bind(null, player.id, 1)} variant="secondary">
+                                            <Plus className="w-4 h-4" />
+                                        </ActionButton>
+                                    </div>
                                 </div>
 
-                                <ActionButton action={updateWinsAction.bind(null, player.id, 1)} variant="secondary">
-                                    <Plus className="w-4 h-4" />
-                                </ActionButton>
+                                <div className="w-px h-8 bg-white/10 mx-2" />
+
+                                {/* Points Controls */}
+                                <div className="flex flex-col items-center gap-1">
+                                    <span className="text-xs text-gray-400">Points</span>
+                                    <div className="flex items-center gap-1">
+                                        <ActionButton action={updatePointsAction.bind(null, player.id, -1)} variant="secondary">
+                                            <Minus className="w-4 h-4" />
+                                        </ActionButton>
+                                        <div className="w-12 text-center font-bold text-lg tabular-nums">
+                                            {player.points || 0}
+                                        </div>
+                                        <ActionButton action={updatePointsAction.bind(null, player.id, 1)} variant="secondary">
+                                            <Plus className="w-4 h-4" />
+                                        </ActionButton>
+                                    </div>
+                                </div>
 
                                 <div className="w-px h-8 bg-white/10 mx-2" />
 
