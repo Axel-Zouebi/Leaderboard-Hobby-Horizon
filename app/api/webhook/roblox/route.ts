@@ -8,22 +8,29 @@ export async function POST(request: Request) {
     try {
         const body = await request.json();
         
-        // Support both old format (single username) and new format (top 3 players)
+        // Support both old format (single username) and new format (top 10 players)
         let players: Array<{ username: string; rank: number }> = [];
         
         if (body.username) {
             // Legacy format: single winner
             players = [{ username: body.username, rank: 1 }];
-        } else if (body.first || body.second || body.third) {
-            // New format: explicit first/second/third
+        } else if (body.first || body.second || body.third || body.fourth || body.fifth || body.sixth || body.seventh || body.eighth || body.ninth || body.tenth) {
+            // New format: explicit first through tenth
             if (body.first) players.push({ username: body.first, rank: 1 });
             if (body.second) players.push({ username: body.second, rank: 2 });
             if (body.third) players.push({ username: body.third, rank: 3 });
+            if (body.fourth) players.push({ username: body.fourth, rank: 4 });
+            if (body.fifth) players.push({ username: body.fifth, rank: 5 });
+            if (body.sixth) players.push({ username: body.sixth, rank: 6 });
+            if (body.seventh) players.push({ username: body.seventh, rank: 7 });
+            if (body.eighth) players.push({ username: body.eighth, rank: 8 });
+            if (body.ninth) players.push({ username: body.ninth, rank: 9 });
+            if (body.tenth) players.push({ username: body.tenth, rank: 10 });
         } else if (Array.isArray(body.players)) {
             // New format: array of players with rank
             players = body.players;
         } else {
-            return NextResponse.json({ error: 'Invalid request format. Expected username, {first, second, third}, or players array' }, { status: 400 });
+            return NextResponse.json({ error: 'Invalid request format. Expected username, {first, second, third, ...}, or players array' }, { status: 400 });
         }
 
         if (players.length === 0) {
@@ -46,17 +53,23 @@ export async function POST(request: Request) {
             }
 
             // Determine points and wins based on rank
-            let pointsToAdd = 0;
-            let winsToAdd = 0;
+            // Points allocation: 1st=100, 2nd=70, 3rd=50, 4th=40, 5th=30, 6th=20, 7th-10th=10 each
+            // Only rank 1 gets wins
+            const pointsByRank: Record<number, number> = {
+                1: 100,
+                2: 70,
+                3: 50,
+                4: 40,
+                5: 30,
+                6: 20,
+                7: 10,
+                8: 10,
+                9: 10,
+                10: 10
+            };
             
-            if (rank === 1) {
-                pointsToAdd = 100;
-                winsToAdd = 1;
-            } else if (rank === 2) {
-                pointsToAdd = 70;
-            } else if (rank === 3) {
-                pointsToAdd = 50;
-            }
+            const pointsToAdd = pointsByRank[rank] || 0;
+            const winsToAdd = rank === 1 ? 1 : 0;
 
             const allPlayers = await db.getPlayers(day);
             const existingPlayer = allPlayers.find(p => p.username.toLowerCase() === username.toLowerCase());
