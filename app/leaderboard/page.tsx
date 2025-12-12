@@ -23,13 +23,18 @@ function DayTabsWrapper() {
 export default async function LeaderboardPage({
     searchParams,
 }: {
-    searchParams: { day?: string };
+    searchParams?: Promise<{ day?: string }> | { day?: string };
 }) {
+    // In Next.js 16, searchParams is a Promise that needs to be awaited
+    const params = searchParams instanceof Promise ? await searchParams : (searchParams || {});
+    
     // Get day from URL params, default to current day if weekend, otherwise saturday
     let day: 'saturday' | 'sunday' = 'saturday';
-    if (searchParams?.day === 'sunday') {
+    const dayParam = params.day;
+    
+    if (dayParam === 'sunday') {
         day = 'sunday';
-    } else if (searchParams?.day === 'saturday') {
+    } else if (dayParam === 'saturday') {
         day = 'saturday';
     } else {
         const currentDay = getCurrentDay();

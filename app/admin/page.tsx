@@ -41,10 +41,13 @@ function AdminDayTabsWrapper() {
 export default async function AdminPage({
     searchParams,
 }: {
-    searchParams: { day?: string };
+    searchParams?: Promise<{ day?: string }> | { day?: string };
 }) {
+    // In Next.js 16, searchParams is a Promise that needs to be awaited
+    const params = searchParams instanceof Promise ? await searchParams : (searchParams || {});
+    
     // Get day from URL params, default to saturday
-    const day: 'saturday' | 'sunday' = searchParams?.day === 'sunday' ? 'sunday' : 'saturday';
+    const day: 'saturday' | 'sunday' = params.day === 'sunday' ? 'sunday' : 'saturday';
     
     const players = await getPlayers(day);
     const pendingWinners = await getPendingWinners(day);
