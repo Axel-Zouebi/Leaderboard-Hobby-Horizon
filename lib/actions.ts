@@ -4,11 +4,12 @@ import { db, Player } from './db';
 import { fetchRobloxUser, fetchRobloxAvatar, fetchBatchAvatars } from './roblox';
 import { v4 as uuidv4 } from 'uuid';
 import { revalidatePath } from 'next/cache';
+import { getCurrentDay } from './utils';
 
 
-export async function getPlayers() {
-    console.log('Fetching players...');
-    const players = await db.getPlayers();
+export async function getPlayers(day?: 'saturday' | 'sunday') {
+    console.log('Fetching players...', day ? `for ${day}` : 'for all days');
+    const players = await db.getPlayers(day);
 
     // Fetch fresh avatars
     const userIds = players.map(p => p.robloxUserId);
@@ -23,14 +24,14 @@ export async function getPlayers() {
     return players;
 }
 
-export async function getPendingWinners() {
-    return await db.getPendingWinners();
+export async function getPendingWinners(day?: 'saturday' | 'sunday') {
+    return await db.getPendingWinners(day);
 }
 
-export async function approvePendingWinnerAction(username: string) {
+export async function approvePendingWinnerAction(username: string, day: 'saturday' | 'sunday') {
     // 1. Get the pending winner info to know how many wins they have
-    const pendingList = await db.getPendingWinners();
-    const pending = pendingList.find(p => p.username === username);
+    const pendingList = await db.getPendingWinners(day);
+    const pending = pendingList.find(p => p.username === username && p.day === day);
     if (!pending) return;
 
     // 2. Fetch Roblox Data
@@ -50,12 +51,13 @@ export async function approvePendingWinnerAction(username: string) {
         wins: pending.wins, // Use accrued wins
         avatarUrl: avatarUrl || '',
         createdAt: new Date().toISOString(),
+        day: pending.day,
     };
 
     await db.addPlayer(newPlayer);
 
     // 4. Remove from pending
-    await db.removePendingWinner(username);
+    await db.removePendingWinner(username, day);
 
     revalidatePath('/admin');
     revalidatePath('/leaderboard');
@@ -63,7 +65,13 @@ export async function approvePendingWinnerAction(username: string) {
 
 export async function addPlayerAction(formData: FormData) {
     const username = formData.get('username') as string;
+    let day = formData.get('day') as 'saturday' | 'sunday';
+    
     if (!username) return;
+    if (!day || (day !== 'saturday' && day !== 'sunday')) {
+        // Default to saturday if not provided or invalid
+        day = 'saturday';
+    }
 
     const robloxUser = await fetchRobloxUser(username);
     if (!robloxUser) return;
@@ -78,6 +86,7 @@ export async function addPlayerAction(formData: FormData) {
         wins: 0,
         avatarUrl: avatarUrl || '', // Fallback or placeholder
         createdAt: new Date().toISOString(),
+        day: day,
     };
 
     await db.addPlayer(newPlayer);

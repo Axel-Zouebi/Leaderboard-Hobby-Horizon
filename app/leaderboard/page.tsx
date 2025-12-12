@@ -1,14 +1,44 @@
 import { getPlayers } from '../../lib/actions';
 import { LeaderboardRow } from '../../components/LeaderboardRow';
 import { TopPodium } from '../../components/TopPodium';
-import { AutoRefresh } from '../../components/AutoRefresh'; // Import AutoRefresh
-import { cn } from '../../lib/utils';
+import { AutoRefresh } from '../../components/AutoRefresh';
+import { DayTabs } from '../../components/DayTabs';
+import { getCurrentDay } from '../../lib/utils';
+import { Suspense } from 'react';
 
 export const dynamic = 'force-dynamic'; // Ensure no caching for latest results
 export const revalidate = 0;
 
-export default async function LeaderboardPage() {
-    const players = await getPlayers();
+function DayTabsWrapper() {
+    return (
+        <Suspense fallback={<div className="flex justify-between items-center bg-transparent px-2 mb-4">
+            <div className="px-4 py-2"><span className="font-bold text-sm tracking-wide text-slate-300">SATURDAY</span></div>
+            <div className="px-4 py-2"><span className="font-bold text-sm tracking-wide text-slate-300">SUNDAY</span></div>
+        </div>}>
+            <DayTabs />
+        </Suspense>
+    );
+}
+
+export default async function LeaderboardPage({
+    searchParams,
+}: {
+    searchParams: { day?: string };
+}) {
+    // Get day from URL params, default to current day if weekend, otherwise saturday
+    let day: 'saturday' | 'sunday' = 'saturday';
+    if (searchParams?.day === 'sunday') {
+        day = 'sunday';
+    } else if (searchParams?.day === 'saturday') {
+        day = 'saturday';
+    } else {
+        const currentDay = getCurrentDay();
+        if (currentDay) {
+            day = currentDay;
+        }
+    }
+
+    const players = await getPlayers(day);
 
     // Split top 3 and the rest
     const topPlayers = players.slice(0, 3);
@@ -30,24 +60,8 @@ export default async function LeaderboardPage() {
                         <div className="w-10" /> {/* Spacer for centering */}
                     </div>
 
-                    {/* Tabs */}
-                    <div className="flex justify-between items-center bg-transparent px-2 mb-4">
-                        {['Today', 'Week', 'All Time'].map((tab, i) => (
-                            <div key={tab} className="relative cursor-pointer group px-4 py-2">
-                                <span className={cn(
-                                    "font-bold text-sm tracking-wide transition-colors",
-                                    i === 0 ? "text-slate-900" : "text-slate-300 group-hover:text-slate-500"
-                                )}>
-                                    {tab.toUpperCase()}
-                                </span>
-                                {i === 0 && (
-                                    <div
-                                        className="absolute bottom-0 left-0 right-0 h-1 bg-cyan-400 rounded-full mx-auto w-8"
-                                    />
-                                )}
-                            </div>
-                        ))}
-                    </div>
+                    {/* Day Tabs */}
+                    <DayTabsWrapper />
                 </header>
 
                 <div className="flex-1 flex flex-col">

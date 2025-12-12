@@ -14,20 +14,39 @@ export interface Player {
     wins: number;
     avatarUrl: string;
     createdAt: string;
+    day: 'saturday' | 'sunday';
 }
 
 export interface PendingWinner {
     username: string;
     wins: number;
+    day: 'saturday' | 'sunday';
 }
 
-// Helper to read local JSON
+// Helper to read local JSON with migration support
 function readLocalData(): Player[] {
     if (!fs.existsSync(DATA_FILE)) {
         return [];
     }
     const data = fs.readFileSync(DATA_FILE, 'utf-8');
-    return JSON.parse(data);
+    const players: any[] = JSON.parse(data);
+    
+    // Migration: Add day field if missing (default to saturday)
+    let needsMigration = false;
+    const migratedPlayers = players.map((player: any) => {
+        if (!player.day) {
+            needsMigration = true;
+            return { ...player, day: 'saturday' as const };
+        }
+        return player;
+    });
+    
+    // If migration was needed, write back the migrated data
+    if (needsMigration) {
+        writeLocalData(migratedPlayers);
+    }
+    
+    return migratedPlayers;
 }
 
 // Helper to write local JSON
@@ -35,13 +54,30 @@ function writeLocalData(data: Player[]) {
     fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
 }
 
-// Helper to read local Pending JSON
+// Helper to read local Pending JSON with migration support
 function readLocalPendingData(): PendingWinner[] {
     if (!fs.existsSync(PENDING_DATA_FILE)) {
         return [];
     }
     const data = fs.readFileSync(PENDING_DATA_FILE, 'utf-8');
-    return JSON.parse(data);
+    const pending: any[] = JSON.parse(data);
+    
+    // Migration: Add day field if missing (default to saturday)
+    let needsMigration = false;
+    const migratedPending = pending.map((p: any) => {
+        if (!p.day) {
+            needsMigration = true;
+            return { ...p, day: 'saturday' as const };
+        }
+        return p;
+    });
+    
+    // If migration was needed, write back the migrated data
+    if (needsMigration) {
+        writeLocalPendingData(migratedPending);
+    }
+    
+    return migratedPending;
 }
 
 // Helper to write local Pending JSON
@@ -50,12 +86,17 @@ function writeLocalPendingData(data: PendingWinner[]) {
 }
 
 export const db = {
-    getPlayers: async (): Promise<Player[]> => {
+    getPlayers: async (day?: 'saturday' | 'sunday'): Promise<Player[]> => {
         if (supabase) {
-            const { data, error } = await supabase
+            let query = supabase
                 .from('players')
-                .select('*')
-                .order('wins', { ascending: false });
+                .select('*');
+            
+            if (day) {
+                query = query.eq('day', day);
+            }
+            
+            const { data, error } = await query.order('wins', { ascending: false });
             if (error) throw error;
             return (data || []).map((p: any) => ({
                 id: p.id,
@@ -65,19 +106,29 @@ export const db = {
                 wins: p.wins,
                 avatarUrl: p.avatar_url,
                 createdAt: p.created_at,
+                day: p.day || 'saturday', // Default to saturday for migration
             }));
         } else {
             // Local fallback
-            return readLocalData().sort((a, b) => b.wins - a.wins);
+            let players = readLocalData();
+            if (day) {
+                players = players.filter(p => p.day === day);
+            }
+            return players.sort((a, b) => b.wins - a.wins);
         }
     },
 
-    getPendingWinners: async (): Promise<PendingWinner[]> => {
+    getPendingWinners: async (day?: 'saturday' | 'sunday'): Promise<PendingWinner[]> => {
         if (supabase) {
-            const { data, error } = await supabase
+            let query = supabase
                 .from('pending_winners')
-                .select('*')
-                .order('wins', { ascending: false });
+                .select('*');
+            
+            if (day) {
+                query = query.eq('day', day);
+            }
+            
+            const { data, error } = await query.order('wins', { ascending: false });
 
             // If table doesn't exist or error, just return empty to avoid crashing app if user didn't migrate
             if (error) {
@@ -88,52 +139,67 @@ export const db = {
             return (data || []).map((p: any) => ({
                 username: p.username,
                 wins: p.wins,
+                day: p.day || 'saturday', // Default to saturday for migration
             }));
         } else {
-            return readLocalPendingData().sort((a, b) => b.wins - a.wins);
+            let pending = readLocalPendingData();
+            if (day) {
+                pending = pending.filter(p => p.day === day);
+            }
+            return pending.sort((a, b) => b.wins - a.wins);
         }
     },
 
-    incrementPendingWinner: async (username: string): Promise<void> => {
+    incrementPendingWinner: async (username: string, day: 'saturday' | 'sunday'): Promise<void> => {
         if (supabase) {
-            // Try to find existing
+            // Try to find existing for this day
             const { data } = await supabase
                 .from('pending_winners')
                 .select('wins')
                 .eq('username', username)
+                .eq('day', day)
                 .single();
 
             if (data) {
                 await supabase
                     .from('pending_winners')
                     .update({ wins: data.wins + 1 })
-                    .eq('username', username);
+                    .eq('username', username)
+                    .eq('day', day);
             } else {
                 await supabase
                     .from('pending_winners')
-                    .insert([{ username, wins: 1 }]);
+                    .insert([{ username, wins: 1, day }]);
             }
         } else {
             const pending = readLocalPendingData();
-            const existing = pending.find(p => p.username === username);
+            const existing = pending.find(p => p.username === username && p.day === day);
             if (existing) {
                 existing.wins++;
             } else {
-                pending.push({ username, wins: 1 });
+                pending.push({ username, wins: 1, day });
             }
             writeLocalPendingData(pending);
         }
     },
 
-    removePendingWinner: async (username: string): Promise<void> => {
+    removePendingWinner: async (username: string, day?: 'saturday' | 'sunday'): Promise<void> => {
         if (supabase) {
-            await supabase
+            let query = supabase
                 .from('pending_winners')
                 .delete()
                 .eq('username', username);
+            
+            if (day) {
+                query = query.eq('day', day);
+            }
+            
+            await query;
         } else {
             const pending = readLocalPendingData();
-            const newPending = pending.filter(p => p.username !== username);
+            const newPending = day 
+                ? pending.filter(p => !(p.username === username && p.day === day))
+                : pending.filter(p => p.username !== username);
             writeLocalPendingData(newPending);
         }
     },
@@ -149,7 +215,8 @@ export const db = {
                     displayname: player.displayname,
                     wins: player.wins,
                     avatar_url: player.avatarUrl,
-                    created_at: player.createdAt
+                    created_at: player.createdAt,
+                    day: player.day
                 }])
                 .select()
                 .single();
@@ -168,6 +235,7 @@ export const db = {
             const dbUpdates: any = {};
             if (updates.wins !== undefined) dbUpdates.wins = updates.wins;
             if (updates.avatarUrl) dbUpdates.avatar_url = updates.avatarUrl;
+            if (updates.day) dbUpdates.day = updates.day;
 
             const { error } = await supabase
                 .from('players')

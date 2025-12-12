@@ -1,8 +1,10 @@
 import { getPlayers, getPendingWinners, addPlayerAction, deletePlayerAction, updateWinsAction, approvePendingWinnerAction } from '../../lib/actions';
 import { db } from '@/lib/db';
 import GameControl from '@/components/GameControl';
+import { AdminDayTabs } from '@/components/AdminDayTabs';
 import Image from 'next/image';
 import { Trash2, Plus, Minus, UserPlus, CheckCircle } from 'lucide-react';
+import { Suspense } from 'react';
 
 // Simple inline button for speed/simplicity
 function ActionButton({ action, children, variant = 'primary', ...props }: any) {
@@ -23,9 +25,29 @@ function ActionButton({ action, children, variant = 'primary', ...props }: any) 
     )
 }
 
-export default async function AdminPage() {
-    const players = await getPlayers();
-    const pendingWinners = await getPendingWinners();
+function AdminDayTabsWrapper() {
+    return (
+        <Suspense fallback={
+            <div className="flex gap-2 mb-4">
+                <div className="px-4 py-2 rounded-lg font-medium bg-white/10 text-white/70">Saturday</div>
+                <div className="px-4 py-2 rounded-lg font-medium bg-white/10 text-white/70">Sunday</div>
+            </div>
+        }>
+            <AdminDayTabs />
+        </Suspense>
+    );
+}
+
+export default async function AdminPage({
+    searchParams,
+}: {
+    searchParams: { day?: string };
+}) {
+    // Get day from URL params, default to saturday
+    const day: 'saturday' | 'sunday' = searchParams?.day === 'sunday' ? 'sunday' : 'saturday';
+    
+    const players = await getPlayers(day);
+    const pendingWinners = await getPendingWinners(day);
 
     return (
         <main className="min-h-screen bg-black text-white p-8 font-sans">
@@ -40,11 +62,17 @@ export default async function AdminPage() {
                 {/* Game Control Section */}
                 <GameControl initialStatus={await db.getGameStatus()} />
 
+                {/* Day Selector */}
+                <div className="glass-panel p-4">
+                    <h2 className="text-lg font-semibold mb-4">Select Day</h2>
+                    <AdminDayTabsWrapper />
+                </div>
+
                 {/* Add Player Form */}
                 <div className="glass-panel p-6">
                     <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
                         <UserPlus className="w-5 h-5" />
-                        Add Player
+                        Add Player ({day === 'saturday' ? 'Saturday' : 'Sunday'})
                     </h2>
                     <form action={addPlayerAction} className="flex gap-4">
                         <input
@@ -53,6 +81,11 @@ export default async function AdminPage() {
                             placeholder="Roblox Username"
                             className="flex-1 bg-black/50 border border-white/10 rounded-lg px-4 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                             required
+                        />
+                        <input
+                            name="day"
+                            type="hidden"
+                            value={day}
                         />
                         <button
                             type="submit"
@@ -68,24 +101,26 @@ export default async function AdminPage() {
                     <div className="space-y-4">
                         <h2 className="text-red-400 text-xl font-bold flex items-center gap-2">
                             <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
-                            Pending Approvals ({pendingWinners.length})
+                            Pending Approvals ({pendingWinners.length}) - {day === 'saturday' ? 'Saturday' : 'Sunday'}
                         </h2>
                         {pendingWinners.map((pending) => (
-                            <div key={pending.username} className="glass p-4 rounded-xl flex items-center gap-4 border-l-4 border-l-red-500 bg-red-500/5">
+                            <div key={`${pending.username}-${pending.day}`} className="glass p-4 rounded-xl flex items-center gap-4 border-l-4 border-l-red-500 bg-red-500/5">
                                 <div className="h-12 w-12 rounded-full bg-red-900/50 flex items-center justify-center text-red-200 font-bold border border-red-500/30">
                                     ?
                                 </div>
 
                                 <div className="flex-1">
                                     <div className="font-semibold text-lg text-red-200">{pending.username}</div>
-                                    <div className="text-sm text-red-400/70">Unregistered Wins: {pending.wins}</div>
+                                    <div className="text-sm text-red-400/70">
+                                        Unregistered Wins: {pending.wins} • Day: {pending.day === 'saturday' ? 'Saturday' : 'Sunday'}
+                                    </div>
                                 </div>
 
                                 <div className="flex items-center gap-4">
                                     <div className="font-bold text-xl text-red-400 tabular-nums">
                                         +{pending.wins}
                                     </div>
-                                    <ActionButton action={approvePendingWinnerAction.bind(null, pending.username)} variant="success">
+                                    <ActionButton action={approvePendingWinnerAction.bind(null, pending.username, pending.day)} variant="success">
                                         <CheckCircle className="w-5 h-5" />
                                         <span className="sr-only">Approve</span>
                                     </ActionButton>
@@ -97,7 +132,9 @@ export default async function AdminPage() {
 
                 {/* Player List */}
                 <div className="space-y-4">
-                    <h2 className="text-white/50 text-sm font-semibold uppercase tracking-wider">Registered Players</h2>
+                    <h2 className="text-white/50 text-sm font-semibold uppercase tracking-wider">
+                        Registered Players - {day === 'saturday' ? 'Saturday' : 'Sunday'}
+                    </h2>
                     {players.map((player) => (
                         <div key={player.id} className="glass p-4 rounded-xl flex items-center gap-4">
                             <div className="relative h-12 w-12 rounded-full overflow-hidden bg-gray-800">
@@ -111,7 +148,9 @@ export default async function AdminPage() {
 
                             <div className="flex-1">
                                 <div className="font-semibold text-lg">{player.displayname || player.username}</div>
-                                <div className="text-sm text-gray-400">@{player.username} • Wins: {player.wins}</div>
+                                <div className="text-sm text-gray-400">
+                                    @{player.username} • Wins: {player.wins} • Day: {player.day === 'saturday' ? 'Saturday' : 'Sunday'}
+                                </div>
                             </div>
 
                             <div className="flex items-center gap-2">
