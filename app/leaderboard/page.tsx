@@ -3,6 +3,7 @@ import { LeaderboardRow } from '../../components/LeaderboardRow';
 import { TopPodium } from '../../components/TopPodium';
 import { AutoRefresh } from '../../components/AutoRefresh';
 import { DayTabs } from '../../components/DayTabs';
+import { TournamentTabs } from '../../components/TournamentTabs';
 import { getCurrentDay } from '../../lib/utils';
 import { Suspense } from 'react';
 
@@ -20,10 +21,21 @@ function DayTabsWrapper() {
     );
 }
 
+function TournamentTabsWrapper() {
+    return (
+        <Suspense fallback={<div className="flex justify-between items-center bg-transparent px-2 mb-4">
+            <div className="px-4 py-2"><span className="font-bold text-sm tracking-wide text-slate-300">ALL DAY</span></div>
+            <div className="px-4 py-2"><span className="font-bold text-sm tracking-wide text-slate-300">SPECIAL (1PM)</span></div>
+        </div>}>
+            <TournamentTabs />
+        </Suspense>
+    );
+}
+
 export default async function LeaderboardPage({
     searchParams,
 }: {
-    searchParams?: Promise<{ day?: string }> | { day?: string };
+    searchParams?: Promise<{ day?: string; tournament?: string }> | { day?: string; tournament?: string };
 }) {
     // In Next.js 16, searchParams is a Promise that needs to be awaited
     const params = searchParams instanceof Promise ? await searchParams : (searchParams || {});
@@ -43,7 +55,11 @@ export default async function LeaderboardPage({
         }
     }
 
-    const players = await getPlayers(day);
+    // Get tournament type from URL params, default to 'all-day'
+    const tournamentParam = params.tournament;
+    const tournament_type: 'all-day' | 'special' = (tournamentParam === 'special' ? 'special' : 'all-day');
+
+    const players = await getPlayers(day, tournament_type);
 
     // Split top 3 and the rest
     const topPlayers = players.slice(0, 3);
@@ -67,6 +83,9 @@ export default async function LeaderboardPage({
 
                     {/* Day Tabs */}
                     <DayTabsWrapper />
+                    
+                    {/* Tournament Tabs - Only show on Sunday */}
+                    {day === 'sunday' && <TournamentTabsWrapper />}
                 </header>
 
                 <div className="flex-1 flex flex-col">

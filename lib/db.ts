@@ -16,6 +16,7 @@ export interface Player {
     avatarUrl: string;
     createdAt: string;
     day: 'saturday' | 'sunday';
+    tournament_type?: 'all-day' | 'special'; // Optional for backward compatibility
 }
 
 export interface PendingWinner {
@@ -23,6 +24,7 @@ export interface PendingWinner {
     wins: number;
     points: number;
     day: 'saturday' | 'sunday';
+    tournament_type?: 'all-day' | 'special'; // Optional for backward compatibility
 }
 
 // Helper to read local JSON with migration support
@@ -35,6 +37,7 @@ function readLocalData(): Player[] {
     
     // Migration: Add day field if missing (default to saturday)
     // Migration: Add points field if missing (default to 0)
+    // Migration: Add tournament_type field if missing (default to all-day)
     let needsMigration = false;
     const migratedPlayers = players.map((player: any) => {
         const updates: any = {};
@@ -45,6 +48,10 @@ function readLocalData(): Player[] {
         if (player.points === undefined) {
             needsMigration = true;
             updates.points = 0;
+        }
+        if (player.tournament_type === undefined) {
+            needsMigration = true;
+            updates.tournament_type = 'all-day' as const;
         }
         if (Object.keys(updates).length > 0) {
             return { ...player, ...updates };
@@ -75,6 +82,7 @@ function readLocalPendingData(): PendingWinner[] {
     
     // Migration: Add day field if missing (default to saturday)
     // Migration: Add points field if missing (default to 0)
+    // Migration: Add tournament_type field if missing (default to all-day)
     let needsMigration = false;
     const migratedPending = pending.map((p: any) => {
         const updates: any = {};
@@ -85,6 +93,10 @@ function readLocalPendingData(): PendingWinner[] {
         if (p.points === undefined) {
             needsMigration = true;
             updates.points = 0;
+        }
+        if (p.tournament_type === undefined) {
+            needsMigration = true;
+            updates.tournament_type = 'all-day' as const;
         }
         if (Object.keys(updates).length > 0) {
             return { ...p, ...updates };
@@ -106,7 +118,7 @@ function writeLocalPendingData(data: PendingWinner[]) {
 }
 
 export const db = {
-    getPlayers: async (day?: 'saturday' | 'sunday'): Promise<Player[]> => {
+    getPlayers: async (day?: 'saturday' | 'sunday', tournament_type?: 'all-day' | 'special'): Promise<Player[]> => {
         if (supabase) {
             let query = supabase
                 .from('players')
@@ -114,6 +126,13 @@ export const db = {
             
             if (day) {
                 query = query.eq('day', day);
+            }
+            
+            if (tournament_type) {
+                query = query.eq('tournament_type', tournament_type);
+            } else if (day === 'sunday') {
+                // For Sunday, if no tournament_type specified, default to all-day for backward compatibility
+                query = query.or('tournament_type.is.null,tournament_type.eq.all-day');
             }
             
             const { data, error } = await query.order('points', { ascending: false }).order('wins', { ascending: false });
@@ -128,6 +147,7 @@ export const db = {
                 avatarUrl: p.avatar_url,
                 createdAt: p.created_at,
                 day: p.day || 'saturday', // Default to saturday for migration
+                tournament_type: p.tournament_type || 'all-day', // Default to all-day for migration
             }));
             // Sort by points DESC, then wins DESC (Supabase order might not handle multiple sorts correctly)
             return players.sort((a, b) => {
@@ -140,6 +160,12 @@ export const db = {
             if (day) {
                 players = players.filter(p => p.day === day);
             }
+            if (tournament_type) {
+                players = players.filter(p => (p.tournament_type || 'all-day') === tournament_type);
+            } else if (day === 'sunday') {
+                // For Sunday, if no tournament_type specified, default to all-day for backward compatibility
+                players = players.filter(p => !p.tournament_type || p.tournament_type === 'all-day');
+            }
             return players.sort((a, b) => {
                 if (b.points !== a.points) return b.points - a.points;
                 return b.wins - a.wins;
@@ -147,7 +173,7 @@ export const db = {
         }
     },
 
-    getPendingWinners: async (day?: 'saturday' | 'sunday'): Promise<PendingWinner[]> => {
+    getPendingWinners: async (day?: 'saturday' | 'sunday', tournament_type?: 'all-day' | 'special'): Promise<PendingWinner[]> => {
         if (supabase) {
             let query = supabase
                 .from('pending_winners')
@@ -155,6 +181,13 @@ export const db = {
             
             if (day) {
                 query = query.eq('day', day);
+            }
+            
+            if (tournament_type) {
+                query = query.eq('tournament_type', tournament_type);
+            } else if (day === 'sunday') {
+                // For Sunday, if no tournament_type specified, default to all-day for backward compatibility
+                query = query.or('tournament_type.is.null,tournament_type.eq.all-day');
             }
             
             const { data, error } = await query.order('wins', { ascending: false });
@@ -170,24 +203,32 @@ export const db = {
                 wins: p.wins || 0,
                 points: p.points || 0,
                 day: p.day || 'saturday', // Default to saturday for migration
+                tournament_type: p.tournament_type || 'all-day', // Default to all-day for migration
             }));
         } else {
             let pending = readLocalPendingData();
             if (day) {
                 pending = pending.filter(p => p.day === day);
             }
+            if (tournament_type) {
+                pending = pending.filter(p => (p.tournament_type || 'all-day') === tournament_type);
+            } else if (day === 'sunday') {
+                // For Sunday, if no tournament_type specified, default to all-day for backward compatibility
+                pending = pending.filter(p => !p.tournament_type || p.tournament_type === 'all-day');
+            }
             return pending.sort((a, b) => b.wins - a.wins);
         }
     },
 
-    incrementPendingWinner: async (username: string, day: 'saturday' | 'sunday', wins: number = 0, points: number = 0): Promise<void> => {
+    incrementPendingWinner: async (username: string, day: 'saturday' | 'sunday', wins: number = 0, points: number = 0, tournament_type: 'all-day' | 'special' = 'all-day'): Promise<void> => {
         if (supabase) {
-            // Try to find existing for this day
+            // Try to find existing for this day and tournament_type
             const { data } = await supabase
                 .from('pending_winners')
                 .select('wins, points')
                 .eq('username', username)
                 .eq('day', day)
+                .eq('tournament_type', tournament_type)
                 .single();
 
             if (data) {
@@ -198,26 +239,27 @@ export const db = {
                         points: (data.points || 0) + points
                     })
                     .eq('username', username)
-                    .eq('day', day);
+                    .eq('day', day)
+                    .eq('tournament_type', tournament_type);
             } else {
                 await supabase
                     .from('pending_winners')
-                    .insert([{ username, wins, points, day }]);
+                    .insert([{ username, wins, points, day, tournament_type }]);
             }
         } else {
             const pending = readLocalPendingData();
-            const existing = pending.find(p => p.username === username && p.day === day);
+            const existing = pending.find(p => p.username === username && p.day === day && (p.tournament_type || 'all-day') === tournament_type);
             if (existing) {
                 existing.wins = (existing.wins || 0) + wins;
                 existing.points = (existing.points || 0) + points;
             } else {
-                pending.push({ username, wins, points, day });
+                pending.push({ username, wins, points, day, tournament_type });
             }
             writeLocalPendingData(pending);
         }
     },
 
-    removePendingWinner: async (username: string, day?: 'saturday' | 'sunday'): Promise<void> => {
+    removePendingWinner: async (username: string, day?: 'saturday' | 'sunday', tournament_type?: 'all-day' | 'special'): Promise<void> => {
         if (supabase) {
             let query = supabase
                 .from('pending_winners')
@@ -228,11 +270,17 @@ export const db = {
                 query = query.eq('day', day);
             }
             
+            if (tournament_type) {
+                query = query.eq('tournament_type', tournament_type);
+            }
+            
             await query;
         } else {
             const pending = readLocalPendingData();
             const newPending = day 
-                ? pending.filter(p => !(p.username === username && p.day === day))
+                ? (tournament_type
+                    ? pending.filter(p => !(p.username === username && p.day === day && (p.tournament_type || 'all-day') === tournament_type))
+                    : pending.filter(p => !(p.username === username && p.day === day)))
                 : pending.filter(p => p.username !== username);
             writeLocalPendingData(newPending);
         }
@@ -251,7 +299,8 @@ export const db = {
                     points: player.points || 0,
                     avatar_url: player.avatarUrl,
                     created_at: player.createdAt,
-                    day: player.day
+                    day: player.day,
+                    tournament_type: player.tournament_type || 'all-day'
                 }])
                 .select()
                 .single();
@@ -272,6 +321,7 @@ export const db = {
             if (updates.points !== undefined) dbUpdates.points = updates.points;
             if (updates.avatarUrl) dbUpdates.avatar_url = updates.avatarUrl;
             if (updates.day) dbUpdates.day = updates.day;
+            if (updates.tournament_type !== undefined) dbUpdates.tournament_type = updates.tournament_type;
 
             const { error } = await supabase
                 .from('players')

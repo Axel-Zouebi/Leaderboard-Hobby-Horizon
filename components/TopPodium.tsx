@@ -52,6 +52,7 @@ function PodiumItem({ player, rank, delay }: { player: Player | undefined, rank:
                 "flex flex-col items-center relative",
                 isFirst ? "w-28 sm:w-32 -mt-8 z-10" : "w-24 sm:w-28"
             )}
+            suppressHydrationWarning
         >
             {/* Crown for 1st */}
             {isFirst && (
@@ -60,6 +61,7 @@ function PodiumItem({ player, rank, delay }: { player: Player | undefined, rank:
                     animate={{ scale: 1 }}
                     transition={{ delay: 0.5, type: 'spring' }}
                     className="absolute -top-10 text-yellow-400 drop-shadow-md"
+                    suppressHydrationWarning
                 >
                     <Crown size={32} fill="currentColor" />
                 </motion.div>

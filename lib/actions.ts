@@ -7,9 +7,9 @@ import { revalidatePath } from 'next/cache';
 import { getCurrentDay } from './utils';
 
 
-export async function getPlayers(day?: 'saturday' | 'sunday') {
-    console.log('Fetching players...', day ? `for ${day}` : 'for all days');
-    const players = await db.getPlayers(day);
+export async function getPlayers(day?: 'saturday' | 'sunday', tournament_type?: 'all-day' | 'special') {
+    console.log('Fetching players...', day ? `for ${day}` : 'for all days', tournament_type ? `(${tournament_type})` : '');
+    const players = await db.getPlayers(day, tournament_type);
 
     // Fetch fresh avatars
     const userIds = players.map(p => p.robloxUserId);
@@ -24,14 +24,14 @@ export async function getPlayers(day?: 'saturday' | 'sunday') {
     return players;
 }
 
-export async function getPendingWinners(day?: 'saturday' | 'sunday') {
-    return await db.getPendingWinners(day);
+export async function getPendingWinners(day?: 'saturday' | 'sunday', tournament_type?: 'all-day' | 'special') {
+    return await db.getPendingWinners(day, tournament_type);
 }
 
-export async function approvePendingWinnerAction(username: string, day: 'saturday' | 'sunday') {
+export async function approvePendingWinnerAction(username: string, day: 'saturday' | 'sunday', tournament_type: 'all-day' | 'special' = 'all-day') {
     // 1. Get the pending winner info to know how many wins and points they have
-    const pendingList = await db.getPendingWinners(day);
-    const pending = pendingList.find(p => p.username === username && p.day === day);
+    const pendingList = await db.getPendingWinners(day, tournament_type);
+    const pending = pendingList.find(p => p.username === username && p.day === day && (p.tournament_type || 'all-day') === tournament_type);
     if (!pending) return;
 
     // 2. Fetch Roblox Data
@@ -53,12 +53,13 @@ export async function approvePendingWinnerAction(username: string, day: 'saturda
         avatarUrl: avatarUrl || '',
         createdAt: new Date().toISOString(),
         day: pending.day,
+        tournament_type: pending.tournament_type || 'all-day',
     };
 
     await db.addPlayer(newPlayer);
 
     // 4. Remove from pending
-    await db.removePendingWinner(username, day);
+    await db.removePendingWinner(username, day, tournament_type);
 
     revalidatePath('/admin');
     revalidatePath('/leaderboard');
@@ -67,6 +68,7 @@ export async function approvePendingWinnerAction(username: string, day: 'saturda
 export async function addPlayerAction(formData: FormData) {
     const username = formData.get('username') as string;
     let day = formData.get('day') as 'saturday' | 'sunday';
+    const tournament_type = formData.get('tournament_type') as 'all-day' | 'special' | null;
     
     if (!username) return;
     if (!day || (day !== 'saturday' && day !== 'sunday')) {
@@ -89,6 +91,7 @@ export async function addPlayerAction(formData: FormData) {
         avatarUrl: avatarUrl || '', // Fallback or placeholder
         createdAt: new Date().toISOString(),
         day: day,
+        tournament_type: day === 'sunday' ? (tournament_type || 'all-day') : undefined, // Use provided tournament_type for Sunday, undefined for Saturday
     };
 
     await db.addPlayer(newPlayer);

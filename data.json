@@ -8,7 +8,8 @@
     "avatarUrl": "https://tr.rbxcdn.com/53eb9b17fe1432a802c7390f71966a36/420/420/Image/Png",
     "createdAt": "2024-12-10T10:00:00.000Z",
     "day": "saturday",
-    "points": 0
+    "points": 0,
+    "tournament_type": "all-day"
   },
   {
     "id": "1b9d6bcd-bbfd-4b2d-9b5d-2b8d7b3dcb6e",
@@ -19,7 +20,8 @@
     "avatarUrl": "https://tr.rbxcdn.com/f104d9a6c9d7846505321f64f4347789/420/420/Image/Png",
     "createdAt": "2024-12-10T10:05:00.000Z",
     "day": "saturday",
-    "points": 0
+    "points": 0,
+    "tournament_type": "all-day"
   },
   {
     "id": "17656595-c617-459c-a06f-4f8b8d26e4d7",
@@ -30,7 +32,8 @@
     "avatarUrl": "https://tr.rbxcdn.com/30DAY-AvatarHeadshot-9290ABFB192093CE33D132DA6D646CB0-Png/420/420/AvatarHeadshot/Png/noFilter",
     "createdAt": "2025-12-11T04:55:12.859Z",
     "day": "saturday",
-    "points": 0
+    "points": 0,
+    "tournament_type": "all-day"
   },
   {
     "id": "67c9c6fd-9f43-4979-b24c-6347b2c574ab",
@@ -41,7 +44,8 @@
     "avatarUrl": "https://tr.rbxcdn.com/30DAY-AvatarHeadshot-0F2A90DED6D7165487001D96ECAE08D1-Png/420/420/AvatarHeadshot/Png/noFilter",
     "createdAt": "2025-12-11T05:14:44.126Z",
     "day": "saturday",
-    "points": 0
+    "points": 0,
+    "tournament_type": "all-day"
   },
   {
     "id": "0f60dc4c-289f-4483-a4ad-8652accdfe51",
@@ -52,6 +56,31 @@
     "avatarUrl": "https://tr.rbxcdn.com/30DAY-AvatarHeadshot-789798716DD2AD6DCC672903C5F7D86A-Png/420/420/AvatarHeadshot/Png/noFilter",
     "createdAt": "2025-12-11T05:31:15.206Z",
     "day": "saturday",
-    "points": 0
+    "points": 0,
+    "tournament_type": "all-day"
+  },
+  {
+    "id": "89709815-aba7-4bdb-a568-a4c125d17ef4",
+    "robloxUserId": "4355339447",
+    "username": "TryTheMoon",
+    "displayname": "TryTheMoon",
+    "wins": 1,
+    "points": 0,
+    "avatarUrl": "https://tr.rbxcdn.com/30DAY-AvatarHeadshot-9290ABFB192093CE33D132DA6D646CB0-Png/420/420/AvatarHeadshot/Png/noFilter",
+    "createdAt": "2025-12-13T22:54:12.204Z",
+    "day": "sunday",
+    "tournament_type": "all-day"
+  },
+  {
+    "id": "facc3db6-0191-4960-b15c-4418cdb31415",
+    "robloxUserId": "4355339447",
+    "username": "TryTheMoon",
+    "displayname": "TryTheMoon",
+    "wins": 0,
+    "points": 0,
+    "avatarUrl": "https://tr.rbxcdn.com/30DAY-AvatarHeadshot-9290ABFB192093CE33D132DA6D646CB0-Png/420/420/AvatarHeadshot/Png/noFilter",
+    "createdAt": "2025-12-13T23:05:26.806Z",
+    "day": "sunday",
+    "tournament_type": "special"
   }
 ]

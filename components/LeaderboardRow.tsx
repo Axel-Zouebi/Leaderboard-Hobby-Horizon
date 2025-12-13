@@ -24,6 +24,7 @@ export function LeaderboardRow({ player, rank }: LeaderboardRowProps) {
                 mass: 1
             }}
             className="bg-white flex items-center p-4 rounded-[2rem] shadow-sm mb-3 relative overflow-hidden"
+            suppressHydrationWarning
         >
             <div className="flex items-center gap-4 w-full z-10">
                 {/* Rank & Trend */}

@@ -3,38 +3,33 @@
 import { useSearchParams, useRouter } from 'next/navigation';
 import { cn } from '../lib/utils';
 
-export function AdminDayTabs() {
+export function AdminTournamentTabs() {
     const searchParams = useSearchParams();
     const router = useRouter();
-    const currentDay = searchParams.get('day') || 'saturday';
+    const currentTournament = searchParams.get('tournament') || 'all-day';
 
-    const handleDayChange = (day: 'saturday' | 'sunday') => {
+    const handleTournamentChange = (tournament: 'all-day' | 'special') => {
         const params = new URLSearchParams(searchParams.toString());
-        params.set('day', day);
-        // Remove tournament param when switching to Saturday (only Sunday has tournament types)
-        if (day === 'saturday') {
-            params.delete('tournament');
-        }
+        params.set('tournament', tournament);
         router.push(`/admin?${params.toString()}`);
     };
 
     return (
         <div className="flex gap-2 mb-4">
-            {(['saturday', 'sunday'] as const).map((day) => (
+            {(['all-day', 'special'] as const).map((tournament) => (
                 <button
-                    key={day}
-                    onClick={() => handleDayChange(day)}
+                    key={tournament}
+                    onClick={() => handleTournamentChange(tournament)}
                     className={cn(
                         "px-4 py-2 rounded-lg font-medium transition-colors",
-                        currentDay === day
+                        currentTournament === tournament
                             ? "bg-blue-600 text-white"
                             : "bg-white/10 text-white/70 hover:bg-white/20"
                     )}
                 >
-                    {day === 'saturday' ? 'Saturday' : 'Sunday'}
+                    {tournament === 'all-day' ? 'All Day' : 'Special (1pm)'}
                 </button>
             ))}
         </div>
     );
 }
-

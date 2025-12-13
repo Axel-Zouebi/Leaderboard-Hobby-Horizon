@@ -2,6 +2,7 @@ import { getPlayers, getPendingWinners, addPlayerAction, deletePlayerAction, upd
 import { db } from '@/lib/db';
 import GameControl from '@/components/GameControl';
 import { AdminDayTabs } from '@/components/AdminDayTabs';
+import { AdminTournamentTabs } from '@/components/AdminTournamentTabs';
 import Image from 'next/image';
 import { Trash2, Plus, Minus, UserPlus, CheckCircle } from 'lucide-react';
 import { Suspense } from 'react';
@@ -38,10 +39,23 @@ function AdminDayTabsWrapper() {
     );
 }
 
+function AdminTournamentTabsWrapper() {
+    return (
+        <Suspense fallback={
+            <div className="flex gap-2 mb-4">
+                <div className="px-4 py-2 rounded-lg font-medium bg-white/10 text-white/70">All Day</div>
+                <div className="px-4 py-2 rounded-lg font-medium bg-white/10 text-white/70">Special (1pm)</div>
+            </div>
+        }>
+            <AdminTournamentTabs />
+        </Suspense>
+    );
+}
+
 export default async function AdminPage({
     searchParams,
 }: {
-    searchParams?: Promise<{ day?: string }> | { day?: string };
+    searchParams?: Promise<{ day?: string; tournament?: string }> | { day?: string; tournament?: string };
 }) {
     // In Next.js 16, searchParams is a Promise that needs to be awaited
     const params = searchParams instanceof Promise ? await searchParams : (searchParams || {});
@@ -49,8 +63,12 @@ export default async function AdminPage({
     // Get day from URL params, default to saturday
     const day: 'saturday' | 'sunday' = params.day === 'sunday' ? 'sunday' : 'saturday';
     
-    const players = await getPlayers(day);
-    const pendingWinners = await getPendingWinners(day);
+    // Get tournament type from URL params, default to 'all-day'
+    const tournamentParam = params.tournament;
+    const tournament_type: 'all-day' | 'special' = (tournamentParam === 'special' ? 'special' : 'all-day');
+    
+    const players = await getPlayers(day, tournament_type);
+    const pendingWinners = await getPendingWinners(day, tournament_type);
 
     return (
         <main className="min-h-screen bg-black text-white p-8 font-sans">
@@ -71,11 +89,19 @@ export default async function AdminPage({
                     <AdminDayTabsWrapper />
                 </div>
 
+                {/* Tournament Type Selector - Only show on Sunday */}
+                {day === 'sunday' && (
+                    <div className="glass-panel p-4">
+                        <h2 className="text-lg font-semibold mb-4">Select Tournament Type</h2>
+                        <AdminTournamentTabsWrapper />
+                    </div>
+                )}
+
                 {/* Add Player Form */}
                 <div className="glass-panel p-6">
-                    <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                        <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
                         <UserPlus className="w-5 h-5" />
-                        Add Player ({day === 'saturday' ? 'Saturday' : 'Sunday'})
+                        Add Player ({day === 'saturday' ? 'Saturday' : 'Sunday'}{day === 'sunday' ? ` - ${tournament_type === 'all-day' ? 'All Day' : 'Special'}` : ''})
                     </h2>
                     <form action={addPlayerAction} className="flex gap-4">
                         <input
@@ -90,6 +116,13 @@ export default async function AdminPage({
                             type="hidden"
                             value={day}
                         />
+                        {day === 'sunday' && (
+                            <input
+                                name="tournament_type"
+                                type="hidden"
+                                value={tournament_type}
+                            />
+                        )}
                         <button
                             type="submit"
                             className="bg-blue-600 hover:bg-blue-500 text-white px-6 py-2 rounded-lg font-medium transition-colors"
@@ -104,7 +137,7 @@ export default async function AdminPage({
                     <div className="space-y-4">
                         <h2 className="text-red-400 text-xl font-bold flex items-center gap-2">
                             <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
-                            Pending Approvals ({pendingWinners.length}) - {day === 'saturday' ? 'Saturday' : 'Sunday'}
+                            Pending Approvals ({pendingWinners.length}) - {day === 'saturday' ? 'Saturday' : 'Sunday'}{day === 'sunday' ? ` (${tournament_type === 'all-day' ? 'All Day' : 'Special'})` : ''}
                         </h2>
                         {pendingWinners.map((pending) => (
                             <div key={`${pending.username}-${pending.day}`} className="glass p-4 rounded-xl flex items-center gap-4 border-l-4 border-l-red-500 bg-red-500/5">
@@ -115,7 +148,7 @@ export default async function AdminPage({
                                 <div className="flex-1">
                                     <div className="font-semibold text-lg text-red-200">{pending.username}</div>
                                     <div className="text-sm text-red-400/70">
-                                        Unregistered Wins: {pending.wins || 0} • Unregistered Points: {pending.points || 0} • Day: {pending.day === 'saturday' ? 'Saturday' : 'Sunday'}
+                                        Unregistered Wins: {pending.wins || 0} • Unregistered Points: {pending.points || 0} • Day: {pending.day === 'saturday' ? 'Saturday' : 'Sunday'}{pending.day === 'sunday' ? ` • Tournament: ${(pending.tournament_type || 'all-day') === 'all-day' ? 'All Day' : 'Special'}` : ''}
                                     </div>
                                 </div>
 
@@ -128,7 +161,7 @@ export default async function AdminPage({
                                             +{pending.points || 0} pts
                                         </div>
                                     </div>
-                                    <ActionButton action={approvePendingWinnerAction.bind(null, pending.username, pending.day)} variant="success">
+                                    <ActionButton action={approvePendingWinnerAction.bind(null, pending.username, pending.day, pending.tournament_type || 'all-day')} variant="success">
                                         <CheckCircle className="w-5 h-5" />
                                         <span className="sr-only">Approve</span>
                                     </ActionButton>
@@ -141,7 +174,7 @@ export default async function AdminPage({
                 {/* Player List */}
                 <div className="space-y-4">
                     <h2 className="text-white/50 text-sm font-semibold uppercase tracking-wider">
-                        Registered Players - {day === 'saturday' ? 'Saturday' : 'Sunday'}
+                        Registered Players - {day === 'saturday' ? 'Saturday' : 'Sunday'}{day === 'sunday' ? ` (${tournament_type === 'all-day' ? 'All Day' : 'Special'})` : ''}
                     </h2>
                     {players.map((player) => (
                         <div key={player.id} className="glass p-4 rounded-xl flex items-center gap-4">
@@ -157,7 +190,7 @@ export default async function AdminPage({
                             <div className="flex-1">
                                 <div className="font-semibold text-lg">{player.displayname || player.username}</div>
                                 <div className="text-sm text-gray-400">
-                                    @{player.username} • Wins: {player.wins || 0} • Points: {player.points || 0} • Day: {player.day === 'saturday' ? 'Saturday' : 'Sunday'}
+                                    @{player.username} • Wins: {player.wins || 0} • Points: {player.points || 0} • Day: {player.day === 'saturday' ? 'Saturday' : 'Sunday'}{player.day === 'sunday' ? ` • Tournament: ${(player.tournament_type || 'all-day') === 'all-day' ? 'All Day' : 'Special'}` : ''}
                                 </div>
                             </div>
 
@@ -184,13 +217,13 @@ export default async function AdminPage({
                                 <div className="flex flex-col items-center gap-1">
                                     <span className="text-xs text-gray-400">Points</span>
                                     <div className="flex items-center gap-1">
-                                        <ActionButton action={updatePointsAction.bind(null, player.id, -1)} variant="secondary">
+                                        <ActionButton action={updatePointsAction.bind(null, player.id, -10)} variant="secondary">
                                             <Minus className="w-4 h-4" />
                                         </ActionButton>
                                         <div className="w-12 text-center font-bold text-lg tabular-nums">
                                             {player.points || 0}
                                         </div>
-                                        <ActionButton action={updatePointsAction.bind(null, player.id, 1)} variant="secondary">
+                                        <ActionButton action={updatePointsAction.bind(null, player.id, 10)} variant="secondary">
                                             <Plus className="w-4 h-4" />
                                         </ActionButton>
                                     </div>

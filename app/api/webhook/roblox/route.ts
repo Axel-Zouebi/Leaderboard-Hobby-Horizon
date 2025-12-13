@@ -2,7 +2,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { revalidatePath } from 'next/cache';
-import { getCurrentDay } from '@/lib/utils';
+import { getCurrentDay, getTournamentType } from '@/lib/utils';
 
 export async function POST(request: Request) {
     try {
@@ -45,6 +45,10 @@ export async function POST(request: Request) {
             console.warn(`[Webhook] Received results on non-weekend day, defaulting to saturday`);
         }
 
+        // Determine tournament type from request or auto-detect
+        const requestedTournamentType = body.tournament_type as 'all-day' | 'special' | undefined;
+        const tournament_type = getTournamentType(day, requestedTournamentType);
+
         // Process each player
         for (const { username, rank } of players) {
             if (!username || typeof username !== 'string') {
@@ -71,19 +75,24 @@ export async function POST(request: Request) {
             const pointsToAdd = pointsByRank[rank] || 0;
             const winsToAdd = rank === 1 ? 1 : 0;
 
-            const allPlayers = await db.getPlayers(day);
-            const existingPlayer = allPlayers.find(p => p.username.toLowerCase() === username.toLowerCase());
+
+            // Check if player exists for this day and tournament type
+            const allPlayers = await db.getPlayers(day, tournament_type);
+            const existingPlayer = allPlayers.find(p => 
+                p.username.toLowerCase() === username.toLowerCase() && 
+                (p.tournament_type || 'all-day') === tournament_type
+            );
 
             if (existingPlayer) {
                 // Player exists, update wins and points
                 const newWins = (existingPlayer.wins || 0) + winsToAdd;
                 const newPoints = (existingPlayer.points || 0) + pointsToAdd;
                 await db.updatePlayer(existingPlayer.id, { wins: newWins, points: newPoints });
-                console.log(`[Webhook] Updated player: ${username} (${day}) - +${winsToAdd} wins, +${pointsToAdd} points`);
+                console.log(`[Webhook] Updated player: ${username} (${day}, ${tournament_type}) - +${winsToAdd} wins, +${pointsToAdd} points`);
             } else {
                 // Player does not exist, add to pending
-                await db.incrementPendingWinner(username, day, winsToAdd, pointsToAdd);
-                console.log(`[Webhook] Added/Incremented pending: ${username} (${day}) - +${winsToAdd} wins, +${pointsToAdd} points`);
+                await db.incrementPendingWinner(username, day, winsToAdd, pointsToAdd, tournament_type);
+                console.log(`[Webhook] Added/Incremented pending: ${username} (${day}, ${tournament_type}) - +${winsToAdd} wins, +${pointsToAdd} points`);
             }
         }
 
