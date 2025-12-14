@@ -8,6 +8,20 @@ export async function POST(request: Request) {
     try {
         const body = await request.json();
         
+        // Log incoming request for debugging
+        console.log(`[Webhook] Received request:`, {
+            hasTournamentType: 'tournament_type' in body,
+            tournamentType: body.tournament_type,
+            hasUsername: 'username' in body,
+            hasPlayers: 'players' in body,
+            hasFirst: 'first' in body,
+            playerCount: Array.isArray(body.players) ? body.players.length : 
+                        (body.first ? 1 : 0) + (body.second ? 1 : 0) + (body.third ? 1 : 0) +
+                        (body.fourth ? 1 : 0) + (body.fifth ? 1 : 0) + (body.sixth ? 1 : 0) +
+                        (body.seventh ? 1 : 0) + (body.eighth ? 1 : 0) + (body.ninth ? 1 : 0) +
+                        (body.tenth ? 1 : 0)
+        });
+        
         // Support both old format (single username) and new format (top 10 players)
         let players: Array<{ username: string; rank: number }> = [];
         
@@ -48,6 +62,19 @@ export async function POST(request: Request) {
         // Determine tournament type from request or auto-detect
         const requestedTournamentType = body.tournament_type as 'all-day' | 'special' | undefined;
         const tournament_type = getTournamentType(day, requestedTournamentType);
+        
+        // Log the tournament type determination for debugging
+        console.log(`[Webhook] Tournament type determination:`, {
+            day,
+            requestedTournamentType: requestedTournamentType || 'not provided',
+            determinedTournamentType: tournament_type,
+            currentTime: new Date().toISOString()
+        });
+        
+        // Warn if tournament_type is missing for Sunday (could cause misclassification)
+        if (day === 'sunday' && !requestedTournamentType) {
+            console.warn(`[Webhook] WARNING: No tournament_type provided for Sunday tournament. Auto-detected as: ${tournament_type}. Game should explicitly send tournament_type: 'special' or 'all-day'`);
+        }
 
         // Process each player
         for (const { username, rank } of players) {
