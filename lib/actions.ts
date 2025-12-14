@@ -28,25 +28,31 @@ export async function getPendingWinners(day?: 'saturday' | 'sunday', tournament_
     return await db.getPendingWinners(day, tournament_type);
 }
 
-export async function approvePendingWinnerAction(username: string, day: 'saturday' | 'sunday', tournament_type: 'all-day' | 'special' = 'all-day') {
+export async function approvePendingWinnerAction(username: string, day: 'saturday' | 'sunday', tournament_type: 'all-day' | 'special' = 'all-day'): Promise<{ success: boolean; error?: string }> {
     try {
         // 1. Get the pending winner info to know how many wins and points they have
         const pendingList = await db.getPendingWinners(day, tournament_type);
         const pending = pendingList.find(p => p.username === username && p.day === day && (p.tournament_type || 'all-day') === tournament_type);
         if (!pending) {
-            throw new Error('Pending winner not found. They may have already been registered.');
+            return { success: false, error: 'Pending winner not found. They may have already been registered.' };
         }
 
         // 2. Fetch Roblox Data with timeout handling
-        const robloxUserPromise = fetchRobloxUser(username);
-        const timeoutPromise = new Promise<never>((_, reject) => 
-            setTimeout(() => reject(new Error('Roblox API timeout: User lookup took too long (10s)')), 10000)
-        );
-        
-        const robloxUser = await Promise.race([robloxUserPromise, timeoutPromise]);
+        let robloxUser;
+        try {
+            const robloxUserPromise = fetchRobloxUser(username);
+            const timeoutPromise = new Promise<never>((_, reject) => 
+                setTimeout(() => reject(new Error('Roblox API timeout: User lookup took too long (10s)')), 10000)
+            );
+            robloxUser = await Promise.race([robloxUserPromise, timeoutPromise]);
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : 'Roblox API timeout: User lookup took too long (10s)';
+            console.error('Error fetching Roblox user:', errorMessage);
+            return { success: false, error: errorMessage };
+        }
         
         if (!robloxUser) {
-            throw new Error(`Could not find Roblox user: ${username}. Please verify the username is correct.`);
+            return { success: false, error: `Could not find Roblox user: ${username}. Please verify the username is correct.` };
         }
 
         // Fetch avatar with timeout (non-critical, so we continue even if it fails)
@@ -83,10 +89,12 @@ export async function approvePendingWinnerAction(username: string, day: 'saturda
 
         revalidatePath('/admin');
         revalidatePath('/leaderboard');
+        
+        return { success: true };
     } catch (error) {
         console.error('Error in approvePendingWinnerAction:', error);
-        // Re-throw to let the client component handle it
-        throw error;
+        const errorMessage = error instanceof Error ? error.message : 'An unexpected error occurred';
+        return { success: false, error: errorMessage };
     }
 }
 

@@ -8,7 +8,7 @@ interface ApprovePendingButtonProps {
     username: string;
     day: 'saturday' | 'sunday';
     tournament_type: 'all-day' | 'special';
-    approveAction: (username: string, day: 'saturday' | 'sunday', tournament_type: 'all-day' | 'special') => Promise<void>;
+    approveAction: (username: string, day: 'saturday' | 'sunday', tournament_type: 'all-day' | 'special') => Promise<{ success: boolean; error?: string }>;
 }
 
 export default function ApprovePendingButton({ 
@@ -36,9 +36,17 @@ export default function ApprovePendingButton({
         setError(null);
 
         try {
-            await approveAction(username, day, tournament_type);
-            // Refresh the page to show updated data
-            router.refresh();
+            const result = await approveAction(username, day, tournament_type);
+            if (result.success) {
+                // Refresh the page to show updated data
+                router.refresh();
+            } else {
+                setError(result.error || 'Failed to approve player');
+                // Still refresh to see current state after a delay
+                setTimeout(() => {
+                    router.refresh();
+                }, 1500);
+            }
         } catch (err) {
             console.error('Error approving pending winner:', err);
             const errorMessage = err instanceof Error ? err.message : 'Failed to approve player';
