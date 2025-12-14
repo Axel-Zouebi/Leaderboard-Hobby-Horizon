@@ -37,34 +37,28 @@ export async function approvePendingWinnerAction(username: string, day: 'saturda
             return { success: false, error: 'Pending winner not found. They may have already been registered.' };
         }
 
-        // 2. Fetch Roblox Data with timeout handling
-        let robloxUser;
-        try {
-            const robloxUserPromise = fetchRobloxUser(username);
-            const timeoutPromise = new Promise<never>((_, reject) => 
-                setTimeout(() => reject(new Error('Roblox API timeout: User lookup took too long (10s)')), 10000)
-            );
-            robloxUser = await Promise.race([robloxUserPromise, timeoutPromise]);
-        } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : 'Roblox API timeout: User lookup took too long (10s)';
-            console.error('Error fetching Roblox user:', errorMessage);
-            return { success: false, error: errorMessage };
-        }
+        // 2. Fetch Roblox Data with retry logic (built into fetchRobloxUser)
+        console.log(`[Approve] Fetching Roblox user data for: ${username}`);
+        const robloxUser = await fetchRobloxUser(username, 3); // 3 retries with exponential backoff
         
         if (!robloxUser) {
-            return { success: false, error: `Could not find Roblox user: ${username}. Please verify the username is correct.` };
+            return { success: false, error: `Could not find Roblox user: ${username}. The user may not exist or Roblox API is unavailable. Please try again in a few moments.` };
         }
+        
+        console.log(`[Approve] Found Roblox user: ${robloxUser.name} (ID: ${robloxUser.id})`);
 
-        // Fetch avatar with timeout (non-critical, so we continue even if it fails)
+        // Fetch avatar with retry logic (non-critical, so we continue even if it fails)
         let avatarUrl: string | null = null;
         try {
-            const avatarUrlPromise = fetchRobloxAvatar(robloxUser.id);
-            const avatarTimeoutPromise = new Promise<never>((_, reject) => 
-                setTimeout(() => reject(new Error('Avatar fetch timeout')), 10000)
-            );
-            avatarUrl = await Promise.race([avatarUrlPromise, avatarTimeoutPromise]);
+            console.log(`[Approve] Fetching avatar for user: ${robloxUser.id}`);
+            avatarUrl = await fetchRobloxAvatar(robloxUser.id, 2); // 2 retries
+            if (avatarUrl) {
+                console.log(`[Approve] Successfully fetched avatar`);
+            } else {
+                console.warn(`[Approve] Avatar fetch failed, continuing without avatar`);
+            }
         } catch (error) {
-            console.warn('Avatar fetch failed or timed out, continuing without avatar:', error);
+            console.warn('[Approve] Avatar fetch failed or timed out, continuing without avatar:', error);
             // Continue without avatar - not critical
         }
 

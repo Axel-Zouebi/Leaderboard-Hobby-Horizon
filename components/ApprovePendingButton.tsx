@@ -36,6 +36,9 @@ export default function ApprovePendingButton({
         setError(null);
 
         try {
+            // Show a message that this might take a while
+            console.log(`Starting approval for ${username}... This may take 20-30 seconds due to Roblox API delays.`);
+            
             const result = await approveAction(username, day, tournament_type);
             if (result.success) {
                 // Refresh the page to show updated data
