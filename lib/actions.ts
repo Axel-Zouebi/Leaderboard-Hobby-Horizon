@@ -29,40 +29,65 @@ export async function getPendingWinners(day?: 'saturday' | 'sunday', tournament_
 }
 
 export async function approvePendingWinnerAction(username: string, day: 'saturday' | 'sunday', tournament_type: 'all-day' | 'special' = 'all-day') {
-    // 1. Get the pending winner info to know how many wins and points they have
-    const pendingList = await db.getPendingWinners(day, tournament_type);
-    const pending = pendingList.find(p => p.username === username && p.day === day && (p.tournament_type || 'all-day') === tournament_type);
-    if (!pending) return;
+    try {
+        // 1. Get the pending winner info to know how many wins and points they have
+        const pendingList = await db.getPendingWinners(day, tournament_type);
+        const pending = pendingList.find(p => p.username === username && p.day === day && (p.tournament_type || 'all-day') === tournament_type);
+        if (!pending) {
+            throw new Error('Pending winner not found. They may have already been registered.');
+        }
 
-    // 2. Fetch Roblox Data
-    const robloxUser = await fetchRobloxUser(username);
-    if (!robloxUser) {
-        console.error('Could not find Roblox user:', username);
-        return; // Or throw error
+        // 2. Fetch Roblox Data with timeout handling
+        const robloxUserPromise = fetchRobloxUser(username);
+        const timeoutPromise = new Promise<never>((_, reject) => 
+            setTimeout(() => reject(new Error('Roblox API timeout: User lookup took too long (10s)')), 10000)
+        );
+        
+        const robloxUser = await Promise.race([robloxUserPromise, timeoutPromise]);
+        
+        if (!robloxUser) {
+            throw new Error(`Could not find Roblox user: ${username}. Please verify the username is correct.`);
+        }
+
+        // Fetch avatar with timeout (non-critical, so we continue even if it fails)
+        let avatarUrl: string | null = null;
+        try {
+            const avatarUrlPromise = fetchRobloxAvatar(robloxUser.id);
+            const avatarTimeoutPromise = new Promise<never>((_, reject) => 
+                setTimeout(() => reject(new Error('Avatar fetch timeout')), 10000)
+            );
+            avatarUrl = await Promise.race([avatarUrlPromise, avatarTimeoutPromise]);
+        } catch (error) {
+            console.warn('Avatar fetch failed or timed out, continuing without avatar:', error);
+            // Continue without avatar - not critical
+        }
+
+        // 3. Create real player with accrued wins and points
+        const newPlayer: Player = {
+            id: uuidv4(),
+            robloxUserId: robloxUser.id.toString(),
+            username: robloxUser.name,
+            displayname: robloxUser.displayName,
+            wins: pending.wins || 0, // Use accrued wins
+            points: pending.points || 0, // Use accrued points
+            avatarUrl: avatarUrl || '',
+            createdAt: new Date().toISOString(),
+            day: pending.day,
+            tournament_type: pending.tournament_type || 'all-day',
+        };
+
+        await db.addPlayer(newPlayer);
+
+        // 4. Remove from pending
+        await db.removePendingWinner(username, day, tournament_type);
+
+        revalidatePath('/admin');
+        revalidatePath('/leaderboard');
+    } catch (error) {
+        console.error('Error in approvePendingWinnerAction:', error);
+        // Re-throw to let the client component handle it
+        throw error;
     }
-    const avatarUrl = await fetchRobloxAvatar(robloxUser.id);
-
-    // 3. Create real player with accrued wins and points
-    const newPlayer: Player = {
-        id: uuidv4(),
-        robloxUserId: robloxUser.id.toString(),
-        username: robloxUser.name,
-        displayname: robloxUser.displayName,
-        wins: pending.wins || 0, // Use accrued wins
-        points: pending.points || 0, // Use accrued points
-        avatarUrl: avatarUrl || '',
-        createdAt: new Date().toISOString(),
-        day: pending.day,
-        tournament_type: pending.tournament_type || 'all-day',
-    };
-
-    await db.addPlayer(newPlayer);
-
-    // 4. Remove from pending
-    await db.removePendingWinner(username, day, tournament_type);
-
-    revalidatePath('/admin');
-    revalidatePath('/leaderboard');
 }
 
 export async function addPlayerAction(formData: FormData) {

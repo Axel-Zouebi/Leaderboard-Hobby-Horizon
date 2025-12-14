@@ -3,8 +3,9 @@ import { db } from '@/lib/db';
 import GameControl from '@/components/GameControl';
 import { AdminDayTabs } from '@/components/AdminDayTabs';
 import { AdminTournamentTabs } from '@/components/AdminTournamentTabs';
+import ApprovePendingButton from '@/components/ApprovePendingButton';
 import Image from 'next/image';
-import { Trash2, Plus, Minus, UserPlus, CheckCircle } from 'lucide-react';
+import { Trash2, Plus, Minus, UserPlus } from 'lucide-react';
 import { Suspense } from 'react';
 
 // Simple inline button for speed/simplicity
@@ -161,10 +162,12 @@ export default async function AdminPage({
                                             +{pending.points || 0} pts
                                         </div>
                                     </div>
-                                    <ActionButton action={approvePendingWinnerAction.bind(null, pending.username, pending.day, pending.tournament_type || 'all-day')} variant="success">
-                                        <CheckCircle className="w-5 h-5" />
-                                        <span className="sr-only">Approve</span>
-                                    </ActionButton>
+                                    <ApprovePendingButton
+                                        username={pending.username}
+                                        day={pending.day}
+                                        tournament_type={pending.tournament_type || 'all-day'}
+                                        approveAction={approvePendingWinnerAction}
+                                    />
                                 </div>
                             </div>
                         ))}
