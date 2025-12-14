@@ -103,10 +103,11 @@ export async function addPlayerAction(formData: FormData) {
         day = 'saturday';
     }
 
-    const robloxUser = await fetchRobloxUser(username);
+    // Use retry logic for consistency with approvePendingWinnerAction
+    const robloxUser = await fetchRobloxUser(username, 3); // 3 retries with exponential backoff
     if (!robloxUser) return;
 
-    const avatarUrl = await fetchRobloxAvatar(robloxUser.id);
+    const avatarUrl = await fetchRobloxAvatar(robloxUser.id, 2); // 2 retries
 
     const newPlayer: Player = {
         id: uuidv4(),
