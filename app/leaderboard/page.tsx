@@ -72,8 +72,8 @@ export default async function LeaderboardPage({
             <div className="max-w-lg mx-auto h-full flex flex-col">
                 <header className="mb-6 relative">
                     {/* Big Promotional Title */}
-                    <h1 className="text-4xl font-bold text-center mb-2 tracking-tight">WIN and EARN 5000 Robux!</h1>
-                    <p className="text-lg text-center mb-6 text-slate-600">Tournament ends at 4pm</p>
+                    <h1 className="text-4xl font-bold text-center mb-2 tracking-tight">CONGRATS TO THE HARD CORE WINNERS!</h1>
+                    <p className="text-lg text-center mb-6 text-slate-600">Tournament ended</p>
                     
                     {/* Header with Back Arrow and Title */}
                     <div className="flex items-center justify-between mb-8">
