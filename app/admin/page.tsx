@@ -81,15 +81,26 @@ export default async function AdminPage({
             ? undefined  // Don't filter by tournament type for RVNC Jan 24th
             : (tournamentParam === 'special' ? 'special' : 'all-day');
         
-        let players, pendingWinners;
+        let players, pendingWinners, gameStatus;
         try {
             players = await getPlayers(day, tournament_type, event);
+        } catch (error) {
+            console.error('[Admin] Error fetching players:', error);
+            players = [];
+        }
+        
+        try {
             pendingWinners = await getPendingWinners(day, tournament_type, event);
         } catch (error) {
-            console.error('[Admin] Error fetching data:', error);
-            // Return empty arrays on error to prevent crash
-            players = [];
+            console.error('[Admin] Error fetching pending winners:', error);
             pendingWinners = [];
+        }
+        
+        try {
+            gameStatus = await db.getGameStatus();
+        } catch (error) {
+            console.error('[Admin] Error fetching game status:', error);
+            gameStatus = 'STOP';
         }
 
     return (
@@ -106,7 +117,7 @@ export default async function AdminPage({
                 </header>
 
                 {/* Game Control Section */}
-                <GameControl initialStatus={await db.getGameStatus()} />
+                <GameControl initialStatus={gameStatus} />
 
                 {/* Day Selector - Only show for Hobby Horizon event */}
                 {event === 'hobby-horizon' && (
