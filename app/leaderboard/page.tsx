@@ -44,13 +44,20 @@ export default async function LeaderboardPage({
     // Get event from URL params, default to 'rvnc-jan-24th'
     const event: string = params.event || 'rvnc-jan-24th';
     
-    // Get day from URL params, default to current day (only used for hobby-horizon)
+    // Get day from URL params
+    // For RVNC Jan 24th, don't filter by day (pass undefined)
+    // For Hobby Horizon, use day from params or default to current day
     const dayParam = params.day;
-    const day: string = dayParam || getCurrentDay();
+    const day: string | undefined = event === 'rvnc-jan-24th' 
+        ? undefined  // Don't filter by day for RVNC Jan 24th
+        : (dayParam || getCurrentDay());
 
     // Get tournament type from URL params, default to 'all-day'
+    // For RVNC Jan 24th, don't filter by tournament type
     const tournamentParam = params.tournament;
-    const tournament_type: 'all-day' | 'special' = (tournamentParam === 'special' ? 'special' : 'all-day');
+    const tournament_type: 'all-day' | 'special' | undefined = event === 'rvnc-jan-24th'
+        ? undefined  // Don't filter by tournament type for RVNC Jan 24th
+        : (tournamentParam === 'special' ? 'special' : 'all-day');
 
     const players = await getPlayers(day, tournament_type, event);
 
