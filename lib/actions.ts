@@ -24,14 +24,14 @@ export async function getPlayers(day?: string, tournament_type?: 'all-day' | 'sp
     return players;
 }
 
-export async function getPendingWinners(day?: string, tournament_type?: 'all-day' | 'special') {
-    return await db.getPendingWinners(day, tournament_type);
+export async function getPendingWinners(day?: string, tournament_type?: 'all-day' | 'special', event?: string) {
+    return await db.getPendingWinners(day, tournament_type, event);
 }
 
 export async function approvePendingWinnerAction(username: string, day: string, tournament_type: 'all-day' | 'special' = 'all-day'): Promise<{ success: boolean; error?: string }> {
     try {
         // 1. Get the pending winner info to know how many wins and points they have
-        const pendingList = await db.getPendingWinners(day, tournament_type);
+        const pendingList = await db.getPendingWinners(day, tournament_type, undefined);
         const pending = pendingList.find(p => p.username === username && p.day === day && (p.tournament_type || 'all-day') === tournament_type);
         if (!pending) {
             return { success: false, error: 'Pending winner not found. They may have already been registered.' };

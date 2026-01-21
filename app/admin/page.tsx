@@ -73,7 +73,7 @@ export default async function AdminPage({
     const tournament_type: 'all-day' | 'special' = (tournamentParam === 'special' ? 'special' : 'all-day');
     
     const players = await getPlayers(day, tournament_type, event);
-    const pendingWinners = await getPendingWinners(day, tournament_type);
+    const pendingWinners = await getPendingWinners(day, tournament_type, event);
 
     return (
         <main className="min-h-screen bg-black text-white p-8 font-sans">

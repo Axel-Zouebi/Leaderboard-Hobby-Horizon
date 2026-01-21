@@ -155,8 +155,10 @@ export const db = {
             const { data, error } = await query.order('points', { ascending: false }).order('wins', { ascending: false });
             if (error) {
                 // If event column doesn't exist, fall back to filtering without event
-                if (error.message?.includes('event') || error.code === '42703') {
-                    console.warn('[DB] Event column may not exist, falling back to no event filter:', error.message);
+                const errorMessage = error.message || '';
+                const errorCode = (error as any).code || '';
+                if (errorMessage.includes('event') || errorMessage.includes('column') || errorCode === '42703' || errorCode === 'PGRST116') {
+                    console.warn('[DB] Event column may not exist, falling back to no event filter:', errorMessage);
                     // Retry query without event filter
                     let fallbackQuery = supabase.from('players').select('*');
                     if (day) fallbackQuery = fallbackQuery.eq('day', day);
@@ -166,9 +168,13 @@ export const db = {
                         fallbackQuery = fallbackQuery.or('tournament_type.is.null,tournament_type.eq.all-day');
                     }
                     const { data: fallbackData, error: fallbackError } = await fallbackQuery.order('points', { ascending: false }).order('wins', { ascending: false });
-                    if (fallbackError) throw fallbackError;
+                    if (fallbackError) {
+                        console.error('[DB] Fallback query also failed:', fallbackError);
+                        throw fallbackError;
+                    }
                     // Filter in memory for hobby-horizon (all old players) or return empty for rvnc-jan-24th
                     const filteredData = event === 'hobby-horizon' ? (fallbackData || []) : [];
+                    console.log(`[DB] Fallback query returned ${filteredData.length} players for event ${event}`);
                     return (filteredData || []).map((p: any) => ({
                         id: p.id,
                         robloxUserId: p.roblox_user_id,
@@ -186,6 +192,7 @@ export const db = {
                         return b.wins - a.wins;
                     });
                 }
+                console.error('[DB] Query error:', error);
                 throw error;
             }
             const players = (data || []).map((p: any) => ({
@@ -199,7 +206,10 @@ export const db = {
                 createdAt: p.created_at,
                 day: p.day || 'saturday', // Default to saturday for migration
                 tournament_type: p.tournament_type || 'all-day', // Default to all-day for migration
-                event: p.event || 'rvnc-jan-24th', // Default to current event
+                // If event is null/undefined, default based on what we're querying for
+                // If we're querying hobby-horizon and event is null, it's an old player (hobby-horizon)
+                // Otherwise, default to rvnc-jan-24th for new players
+                event: p.event || (event === 'hobby-horizon' ? 'hobby-horizon' : 'rvnc-jan-24th'),
             }));
             // Sort by points DESC, then wins DESC (Supabase order might not handle multiple sorts correctly)
             return players.sort((a, b) => {
@@ -240,11 +250,40 @@ export const db = {
         }
     },
 
-    getPendingWinners: async (day?: string, tournament_type?: 'all-day' | 'special'): Promise<PendingWinner[]> => {
+    getPendingWinners: async (day?: string, tournament_type?: 'all-day' | 'special', event?: string): Promise<PendingWinner[]> => {
         if (supabase) {
             let query = supabase
                 .from('pending_winners')
                 .select('*');
+            
+            // Filter by event if provided
+            // Note: pending_winners might not have event column, so we'll handle errors gracefully
+            if (event) {
+                try {
+                    if (event === 'hobby-horizon') {
+                        // For hobby-horizon, include pending winners with event='hobby-horizon' OR event is null (old pending)
+                        query = query.or('event.is.null,event.eq.hobby-horizon');
+                    } else {
+                        // For other events (like rvnc-jan-24th), only show pending winners with that exact event
+                        query = query.eq('event', event);
+                    }
+                } catch (err) {
+                    // If event column doesn't exist, fall back to showing all pending winners for hobby-horizon only
+                    if (event !== 'hobby-horizon') {
+                        // For new events, return empty if event column doesn't exist
+                        return [];
+                    }
+                    // For hobby-horizon, continue without event filter
+                }
+            } else {
+                // If no event specified, default to 'rvnc-jan-24th' - but since pending winners shouldn't exist for new events, return empty
+                try {
+                    query = query.eq('event', 'rvnc-jan-24th');
+                } catch (err) {
+                    // If event column doesn't exist, return empty for default event
+                    return [];
+                }
+            }
             
             if (day) {
                 query = query.eq('day', day);
@@ -261,6 +300,34 @@ export const db = {
 
             // If table doesn't exist or error, just return empty to avoid crashing app if user didn't migrate
             if (error) {
+                // If error is about event column, return empty for new events, or all for hobby-horizon
+                if (error.message?.includes('event') || error.code === '42703') {
+                    if (event === 'hobby-horizon') {
+                        // Retry without event filter for hobby-horizon
+                        let fallbackQuery = supabase.from('pending_winners').select('*');
+                        if (day) fallbackQuery = fallbackQuery.eq('day', day);
+                        if (tournament_type) {
+                            fallbackQuery = fallbackQuery.eq('tournament_type', tournament_type);
+                        } else if (day === 'sunday') {
+                            fallbackQuery = fallbackQuery.or('tournament_type.is.null,tournament_type.eq.all-day');
+                        }
+                        const { data: fallbackData, error: fallbackError } = await fallbackQuery.order('wins', { ascending: false });
+                        if (fallbackError) {
+                            console.warn('Supabase error fetching pending_winners (table might be missing):', fallbackError.message);
+                            return [];
+                        }
+                        return (fallbackData || []).map((p: any) => ({
+                            username: p.username,
+                            wins: p.wins || 0,
+                            points: p.points || 0,
+                            day: p.day || 'saturday',
+                            tournament_type: p.tournament_type || 'all-day',
+                        }));
+                    } else {
+                        // For new events, return empty if event column doesn't exist
+                        return [];
+                    }
+                }
                 console.warn('Supabase error fetching pending_winners (table might be missing):', error.message);
                 return [];
             }
@@ -274,6 +341,21 @@ export const db = {
             }));
         } else {
             let pending = readLocalPendingData();
+            
+            // Filter by event if provided
+            if (event) {
+                if (event === 'hobby-horizon') {
+                    // For hobby-horizon, include pending winners with event='hobby-horizon' OR event is null/undefined (old pending)
+                    pending = pending.filter(p => !p.event || p.event === 'hobby-horizon');
+                } else {
+                    // For other events (like rvnc-jan-24th), only show pending winners with that exact event
+                    pending = pending.filter(p => p.event === event);
+                }
+            } else {
+                // If no event specified, default to 'rvnc-jan-24th' - return empty since pending shouldn't exist for new events
+                pending = pending.filter(p => p.event === 'rvnc-jan-24th');
+            }
+            
             if (day) {
                 pending = pending.filter(p => p.day === day);
             }
