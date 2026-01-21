@@ -8,19 +8,22 @@ export function DayTabs() {
     const router = useRouter();
     const currentDay = searchParams.get('day') || 'saturday';
 
-    const handleDayChange = (day: 'saturday' | 'sunday') => {
+    const handleDayChange = (day: string) => {
         const params = new URLSearchParams(searchParams.toString());
         params.set('day', day);
-        // Remove tournament param when switching to Saturday (only Sunday has tournament types)
-        if (day === 'saturday') {
+        // Remove tournament param when switching away from Sunday (only Sunday has tournament types)
+        if (day !== 'sunday') {
             params.delete('tournament');
         }
         router.push(`/leaderboard?${params.toString()}`);
     };
 
+    // Default days for backward compatibility, but can be extended
+    const days = ['saturday', 'sunday'];
+
     return (
         <div className="flex justify-between items-center bg-transparent px-2 mb-4">
-            {(['saturday', 'sunday'] as const).map((day) => (
+            {days.map((day) => (
                 <button
                     key={day}
                     onClick={() => handleDayChange(day)}
@@ -30,7 +33,7 @@ export function DayTabs() {
                         "font-bold text-sm tracking-wide transition-colors",
                         currentDay === day ? "text-slate-900" : "text-slate-300 group-hover:text-slate-500"
                     )}>
-                        {day === 'saturday' ? 'SATURDAY' : 'SUNDAY'}
+                        {day.toUpperCase()}
                     </span>
                     {currentDay === day && (
                         <div

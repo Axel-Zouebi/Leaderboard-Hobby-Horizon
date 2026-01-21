@@ -7,7 +7,7 @@ import { revalidatePath } from 'next/cache';
 import { getCurrentDay } from './utils';
 
 
-export async function getPlayers(day?: 'saturday' | 'sunday', tournament_type?: 'all-day' | 'special') {
+export async function getPlayers(day?: string, tournament_type?: 'all-day' | 'special') {
     console.log('Fetching players...', day ? `for ${day}` : 'for all days', tournament_type ? `(${tournament_type})` : '');
     const players = await db.getPlayers(day, tournament_type);
 
@@ -24,11 +24,11 @@ export async function getPlayers(day?: 'saturday' | 'sunday', tournament_type?: 
     return players;
 }
 
-export async function getPendingWinners(day?: 'saturday' | 'sunday', tournament_type?: 'all-day' | 'special') {
+export async function getPendingWinners(day?: string, tournament_type?: 'all-day' | 'special') {
     return await db.getPendingWinners(day, tournament_type);
 }
 
-export async function approvePendingWinnerAction(username: string, day: 'saturday' | 'sunday', tournament_type: 'all-day' | 'special' = 'all-day'): Promise<{ success: boolean; error?: string }> {
+export async function approvePendingWinnerAction(username: string, day: string, tournament_type: 'all-day' | 'special' = 'all-day'): Promise<{ success: boolean; error?: string }> {
     try {
         // 1. Get the pending winner info to know how many wins and points they have
         const pendingList = await db.getPendingWinners(day, tournament_type);
@@ -94,13 +94,13 @@ export async function approvePendingWinnerAction(username: string, day: 'saturda
 
 export async function addPlayerAction(formData: FormData) {
     const username = formData.get('username') as string;
-    let day = formData.get('day') as 'saturday' | 'sunday';
+    let day = formData.get('day') as string;
     const tournament_type = formData.get('tournament_type') as 'all-day' | 'special' | null;
     
     if (!username) return;
-    if (!day || (day !== 'saturday' && day !== 'sunday')) {
-        // Default to saturday if not provided or invalid
-        day = 'saturday';
+    if (!day) {
+        // Default to current day if not provided
+        day = getCurrentDay();
     }
 
     // Use retry logic for consistency with approvePendingWinnerAction

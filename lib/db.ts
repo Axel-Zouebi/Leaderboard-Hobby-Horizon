@@ -15,7 +15,7 @@ export interface Player {
     points: number;
     avatarUrl: string;
     createdAt: string;
-    day: 'saturday' | 'sunday';
+    day: string; // Flexible day support - can be any day name
     tournament_type?: 'all-day' | 'special'; // Optional for backward compatibility
 }
 
@@ -23,7 +23,7 @@ export interface PendingWinner {
     username: string;
     wins: number;
     points: number;
-    day: 'saturday' | 'sunday';
+    day: string; // Flexible day support - can be any day name
     tournament_type?: 'all-day' | 'special'; // Optional for backward compatibility
 }
 
@@ -118,7 +118,7 @@ function writeLocalPendingData(data: PendingWinner[]) {
 }
 
 export const db = {
-    getPlayers: async (day?: 'saturday' | 'sunday', tournament_type?: 'all-day' | 'special'): Promise<Player[]> => {
+    getPlayers: async (day?: string, tournament_type?: 'all-day' | 'special'): Promise<Player[]> => {
         if (supabase) {
             let query = supabase
                 .from('players')
@@ -173,7 +173,7 @@ export const db = {
         }
     },
 
-    getPendingWinners: async (day?: 'saturday' | 'sunday', tournament_type?: 'all-day' | 'special'): Promise<PendingWinner[]> => {
+    getPendingWinners: async (day?: string, tournament_type?: 'all-day' | 'special'): Promise<PendingWinner[]> => {
         if (supabase) {
             let query = supabase
                 .from('pending_winners')
@@ -220,7 +220,7 @@ export const db = {
         }
     },
 
-    incrementPendingWinner: async (username: string, day: 'saturday' | 'sunday', wins: number = 0, points: number = 0, tournament_type: 'all-day' | 'special' = 'all-day'): Promise<void> => {
+    incrementPendingWinner: async (username: string, day: string, wins: number = 0, points: number = 0, tournament_type: 'all-day' | 'special' = 'all-day'): Promise<void> => {
         if (supabase) {
             // Try to find existing for this day and tournament_type
             const { data } = await supabase
@@ -259,7 +259,7 @@ export const db = {
         }
     },
 
-    removePendingWinner: async (username: string, day?: 'saturday' | 'sunday', tournament_type?: 'all-day' | 'special'): Promise<void> => {
+    removePendingWinner: async (username: string, day?: string, tournament_type?: 'all-day' | 'special'): Promise<void> => {
         if (supabase) {
             let query = supabase
                 .from('pending_winners')

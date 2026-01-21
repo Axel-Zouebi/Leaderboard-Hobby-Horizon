@@ -61,8 +61,8 @@ export default async function AdminPage({
     // In Next.js 16, searchParams is a Promise that needs to be awaited
     const params = searchParams instanceof Promise ? await searchParams : (searchParams || {});
     
-    // Get day from URL params, default to saturday
-    const day: 'saturday' | 'sunday' = params.day === 'sunday' ? 'sunday' : 'saturday';
+    // Get day from URL params, default to current day
+    const day: string = params.day || 'saturday';
     
     // Get tournament type from URL params, default to 'all-day'
     const tournamentParam = params.tournament;
@@ -90,7 +90,7 @@ export default async function AdminPage({
                     <AdminDayTabsWrapper />
                 </div>
 
-                {/* Tournament Type Selector - Only show on Sunday */}
+                {/* Tournament Type Selector - Only show on Sunday (backward compatibility) */}
                 {day === 'sunday' && (
                     <div className="glass-panel p-4">
                         <h2 className="text-lg font-semibold mb-4">Select Tournament Type</h2>
@@ -102,7 +102,7 @@ export default async function AdminPage({
                 <div className="glass-panel p-6">
                         <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
                         <UserPlus className="w-5 h-5" />
-                        Add Player ({day === 'saturday' ? 'Saturday' : 'Sunday'}{day === 'sunday' ? ` - ${tournament_type === 'all-day' ? 'All Day' : 'Special'}` : ''})
+                        Add Player ({day.charAt(0).toUpperCase() + day.slice(1)}{day === 'sunday' ? ` - ${tournament_type === 'all-day' ? 'All Day' : 'Special'}` : ''})
                     </h2>
                     <form action={addPlayerAction} className="flex gap-4">
                         <input
@@ -138,7 +138,7 @@ export default async function AdminPage({
                     <div className="space-y-4">
                         <h2 className="text-red-400 text-xl font-bold flex items-center gap-2">
                             <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
-                            Pending Approvals ({pendingWinners.length}) - {day === 'saturday' ? 'Saturday' : 'Sunday'}{day === 'sunday' ? ` (${tournament_type === 'all-day' ? 'All Day' : 'Special'})` : ''}
+                            Pending Approvals ({pendingWinners.length}) - {day.charAt(0).toUpperCase() + day.slice(1)}{day === 'sunday' ? ` (${tournament_type === 'all-day' ? 'All Day' : 'Special'})` : ''}
                         </h2>
                         {pendingWinners.map((pending) => (
                             <div key={`${pending.username}-${pending.day}`} className="glass p-4 rounded-xl flex items-center gap-4 border-l-4 border-l-red-500 bg-red-500/5">
@@ -149,7 +149,7 @@ export default async function AdminPage({
                                 <div className="flex-1">
                                     <div className="font-semibold text-lg text-red-200">{pending.username}</div>
                                     <div className="text-sm text-red-400/70">
-                                        Unregistered Wins: {pending.wins || 0} • Unregistered Points: {pending.points || 0} • Day: {pending.day === 'saturday' ? 'Saturday' : 'Sunday'}{pending.day === 'sunday' ? ` • Tournament: ${(pending.tournament_type || 'all-day') === 'all-day' ? 'All Day' : 'Special'}` : ''}
+                                        Unregistered Wins: {pending.wins || 0} • Unregistered Points: {pending.points || 0} • Day: {pending.day.charAt(0).toUpperCase() + pending.day.slice(1)}{pending.day === 'sunday' ? ` • Tournament: ${(pending.tournament_type || 'all-day') === 'all-day' ? 'All Day' : 'Special'}` : ''}
                                     </div>
                                 </div>
 
@@ -177,23 +177,29 @@ export default async function AdminPage({
                 {/* Player List */}
                 <div className="space-y-4">
                     <h2 className="text-white/50 text-sm font-semibold uppercase tracking-wider">
-                        Registered Players - {day === 'saturday' ? 'Saturday' : 'Sunday'}{day === 'sunday' ? ` (${tournament_type === 'all-day' ? 'All Day' : 'Special'})` : ''}
+                        Registered Players - {day.charAt(0).toUpperCase() + day.slice(1)}{day === 'sunday' ? ` (${tournament_type === 'all-day' ? 'All Day' : 'Special'})` : ''}
                     </h2>
                     {players.map((player) => (
                         <div key={player.id} className="glass p-4 rounded-xl flex items-center gap-4">
                             <div className="relative h-12 w-12 rounded-full overflow-hidden bg-gray-800">
-                                <Image
-                                    src={player.avatarUrl}
-                                    alt={player.username}
-                                    fill
-                                    className="object-cover"
-                                />
+                                {player.avatarUrl ? (
+                                    <Image
+                                        src={player.avatarUrl}
+                                        alt={player.username}
+                                        fill
+                                        className="object-cover"
+                                    />
+                                ) : (
+                                    <div className="w-full h-full flex items-center justify-center text-gray-500 text-xs">
+                                        No Avatar
+                                    </div>
+                                )}
                             </div>
 
                             <div className="flex-1">
                                 <div className="font-semibold text-lg">{player.displayname || player.username}</div>
                                 <div className="text-sm text-gray-400">
-                                    @{player.username} • Wins: {player.wins || 0} • Points: {player.points || 0} • Day: {player.day === 'saturday' ? 'Saturday' : 'Sunday'}{player.day === 'sunday' ? ` • Tournament: ${(player.tournament_type || 'all-day') === 'all-day' ? 'All Day' : 'Special'}` : ''}
+                                    @{player.username} • Wins: {player.wins || 0} • Points: {player.points || 0} • Day: {player.day.charAt(0).toUpperCase() + player.day.slice(1)}{player.day === 'sunday' ? ` • Tournament: ${(player.tournament_type || 'all-day') === 'all-day' ? 'All Day' : 'Special'}` : ''}
                                 </div>
                             </div>
 

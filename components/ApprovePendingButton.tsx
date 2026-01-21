@@ -6,9 +6,9 @@ import { CheckCircle, Loader2 } from 'lucide-react';
 
 interface ApprovePendingButtonProps {
     username: string;
-    day: 'saturday' | 'sunday';
+    day: string;
     tournament_type: 'all-day' | 'special';
-    approveAction: (username: string, day: 'saturday' | 'sunday', tournament_type: 'all-day' | 'special') => Promise<{ success: boolean; error?: string }>;
+    approveAction: (username: string, day: string, tournament_type: 'all-day' | 'special') => Promise<{ success: boolean; error?: string }>;
 }
 
 export default function ApprovePendingButton({ 

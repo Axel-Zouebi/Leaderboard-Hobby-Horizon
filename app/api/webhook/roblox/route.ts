@@ -1,8 +1,10 @@
 
 import { NextResponse } from 'next/server';
-import { db } from '@/lib/db';
+import { db, Player } from '@/lib/db';
 import { revalidatePath } from 'next/cache';
 import { getCurrentDay, getTournamentType } from '@/lib/utils';
+import { fetchRobloxUser, fetchBatchAvatars } from '@/lib/roblox';
+import { v4 as uuidv4 } from 'uuid';
 
 export async function POST(request: Request) {
     try {
@@ -12,6 +14,8 @@ export async function POST(request: Request) {
         console.log(`[Webhook] Received request:`, {
             hasTournamentType: 'tournament_type' in body,
             tournamentType: body.tournament_type,
+            hasDay: 'day' in body,
+            day: body.day,
             hasUsername: 'username' in body,
             hasPlayers: 'players' in body,
             hasFirst: 'first' in body,
@@ -51,13 +55,9 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'No players provided' }, { status: 400 });
         }
 
-        // Detect current day (Saturday or Sunday)
-        const currentDay = getCurrentDay();
-        const day = currentDay || 'saturday';
-        
-        if (!currentDay) {
-            console.warn(`[Webhook] Received results on non-weekend day, defaulting to saturday`);
-        }
+        // Determine day: use webhook-provided day, or detect current day
+        const webhookDay = body.day as string | undefined;
+        const day = webhookDay ? getCurrentDay(webhookDay) : getCurrentDay();
 
         // Determine tournament type from request or auto-detect
         const requestedTournamentType = body.tournament_type as 'all-day' | 'special' | undefined;
@@ -70,58 +70,148 @@ export async function POST(request: Request) {
             determinedTournamentType: tournament_type,
             currentTime: new Date().toISOString()
         });
-        
-        // Warn if tournament_type is missing for Sunday (could cause misclassification)
-        if (day === 'sunday' && !requestedTournamentType) {
-            console.warn(`[Webhook] WARNING: No tournament_type provided for Sunday tournament. Auto-detected as: ${tournament_type}. Game should explicitly send tournament_type: 'special' or 'all-day'`);
-        }
 
-        // Process each player
-        for (const { username, rank } of players) {
+        // Points allocation: 1st=100, 2nd=70, 3rd=50, 4th=40, 5th=30, 6th=20, 7th-10th=10 each
+        // Only rank 1 gets wins
+        const pointsByRank: Record<number, number> = {
+            1: 100,
+            2: 70,
+            3: 50,
+            4: 40,
+            5: 30,
+            6: 20,
+            7: 10,
+            8: 10,
+            9: 10,
+            10: 10
+        };
+
+        // Phase 1: Collect user data for all players (with rate limiting)
+        console.log(`[Webhook] Phase 1: Fetching user data for ${players.length} players...`);
+        const playerData: Array<{
+            username: string;
+            rank: number;
+            robloxUser: { id: number; name: string; displayName: string } | null;
+            pointsToAdd: number;
+            winsToAdd: number;
+        }> = [];
+
+        for (let i = 0; i < players.length; i++) {
+            const { username, rank } = players[i];
+            
             if (!username || typeof username !== 'string') {
                 console.warn(`[Webhook] Invalid username for rank ${rank}, skipping`);
                 continue;
             }
 
-            // Determine points and wins based on rank
-            // Points allocation: 1st=100, 2nd=70, 3rd=50, 4th=40, 5th=30, 6th=20, 7th-10th=10 each
-            // Only rank 1 gets wins
-            const pointsByRank: Record<number, number> = {
-                1: 100,
-                2: 70,
-                3: 50,
-                4: 40,
-                5: 30,
-                6: 20,
-                7: 10,
-                8: 10,
-                9: 10,
-                10: 10
-            };
-            
+            // Rate limit: 100ms delay between user search requests
+            if (i > 0) {
+                await new Promise(resolve => setTimeout(resolve, 100));
+            }
+
+            const robloxUser = await fetchRobloxUser(username, 3);
             const pointsToAdd = pointsByRank[rank] || 0;
             const winsToAdd = rank === 1 ? 1 : 0;
 
+            playerData.push({
+                username,
+                rank,
+                robloxUser,
+                pointsToAdd,
+                winsToAdd
+            });
 
-            // Check if player exists for this day and tournament type
-            const allPlayers = await db.getPlayers(day, tournament_type);
-            const existingPlayer = allPlayers.find(p => 
+            if (robloxUser) {
+                console.log(`[Webhook] Fetched user data for ${username} (ID: ${robloxUser.id})`);
+            } else {
+                console.warn(`[Webhook] Failed to fetch user data for ${username}, will skip`);
+            }
+        }
+
+        // Phase 2: Check existing players and create new ones
+        console.log(`[Webhook] Phase 2: Creating/updating player records...`);
+        const existingPlayers = await db.getPlayers(day, tournament_type);
+        const playersToUpdate: Array<{ id: string; wins: number; points: number }> = [];
+        const newPlayers: Array<{ player: Player; userId: string }> = [];
+        const userIdsToFetch: string[] = [];
+
+        for (const { username, robloxUser, pointsToAdd, winsToAdd } of playerData) {
+            if (!robloxUser) {
+                console.warn(`[Webhook] Skipping ${username} - failed to fetch Roblox user data`);
+                continue;
+            }
+
+            const existingPlayer = existingPlayers.find(p => 
                 p.username.toLowerCase() === username.toLowerCase() && 
                 (p.tournament_type || 'all-day') === tournament_type
             );
 
             if (existingPlayer) {
-                // Player exists, update wins and points
+                // Player exists, update stats
                 const newWins = (existingPlayer.wins || 0) + winsToAdd;
                 const newPoints = (existingPlayer.points || 0) + pointsToAdd;
-                await db.updatePlayer(existingPlayer.id, { wins: newWins, points: newPoints });
-                console.log(`[Webhook] Updated player: ${username} (${day}, ${tournament_type}) - +${winsToAdd} wins, +${pointsToAdd} points`);
+                playersToUpdate.push({
+                    id: existingPlayer.id,
+                    wins: newWins,
+                    points: newPoints
+                });
+                console.log(`[Webhook] Will update existing player: ${username} - +${winsToAdd} wins, +${pointsToAdd} points`);
             } else {
-                // Player does not exist, add to pending
-                await db.incrementPendingWinner(username, day, winsToAdd, pointsToAdd, tournament_type);
-                console.log(`[Webhook] Added/Incremented pending: ${username} (${day}, ${tournament_type}) - +${winsToAdd} wins, +${pointsToAdd} points`);
+                // Create new player with placeholder avatar
+                const newPlayer: Player = {
+                    id: uuidv4(),
+                    robloxUserId: robloxUser.id.toString(),
+                    username: robloxUser.name,
+                    displayname: robloxUser.displayName,
+                    wins: winsToAdd,
+                    points: pointsToAdd,
+                    avatarUrl: '', // Placeholder - will be updated in Phase 3
+                    createdAt: new Date().toISOString(),
+                    day: day,
+                    tournament_type: tournament_type,
+                };
+                newPlayers.push({ player: newPlayer, userId: robloxUser.id.toString() });
+                userIdsToFetch.push(robloxUser.id.toString());
+                console.log(`[Webhook] Will create new player: ${username} (ID: ${robloxUser.id}) - ${winsToAdd} wins, ${pointsToAdd} points`);
             }
         }
+
+        // Create all new players immediately
+        for (const { player } of newPlayers) {
+            await db.addPlayer(player);
+        }
+
+        // Phase 3: Batch fetch avatars for all new players
+        console.log(`[Webhook] Phase 3: Batch fetching avatars for ${userIdsToFetch.length} new players...`);
+        let avatarMap: Record<string, string> = {};
+        if (userIdsToFetch.length > 0) {
+            try {
+                avatarMap = await fetchBatchAvatars(userIdsToFetch);
+                console.log(`[Webhook] Successfully fetched ${Object.keys(avatarMap).length} avatars via batch API`);
+            } catch (error) {
+                console.error(`[Webhook] Batch avatar fetch failed:`, error);
+                // Continue without avatars - players will have placeholder
+            }
+        }
+
+        // Phase 4: Update new players with avatars and update existing players' stats
+        console.log(`[Webhook] Phase 4: Updating player records...`);
+        
+        // Update new players with avatars
+        for (const { player, userId } of newPlayers) {
+            const avatarUrl = avatarMap[userId] || '';
+            if (avatarUrl) {
+                await db.updatePlayer(player.id, { avatarUrl });
+                console.log(`[Webhook] Updated avatar for ${player.username}`);
+            }
+        }
+
+        // Update existing players' stats
+        for (const { id, wins, points } of playersToUpdate) {
+            await db.updatePlayer(id, { wins, points });
+        }
+
+        console.log(`[Webhook] Successfully processed ${newPlayers.length} new players and updated ${playersToUpdate.length} existing players`);
 
         // Revalidate pages so UI updates immediately
         revalidatePath('/leaderboard');

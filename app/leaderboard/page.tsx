@@ -40,20 +40,9 @@ export default async function LeaderboardPage({
     // In Next.js 16, searchParams is a Promise that needs to be awaited
     const params = searchParams instanceof Promise ? await searchParams : (searchParams || {});
     
-    // Get day from URL params, default to current day if weekend, otherwise saturday
-    let day: 'saturday' | 'sunday' = 'saturday';
+    // Get day from URL params, default to current day
     const dayParam = params.day;
-    
-    if (dayParam === 'sunday') {
-        day = 'sunday';
-    } else if (dayParam === 'saturday') {
-        day = 'saturday';
-    } else {
-        const currentDay = getCurrentDay();
-        if (currentDay) {
-            day = currentDay;
-        }
-    }
+    const day: string = dayParam || getCurrentDay();
 
     // Get tournament type from URL params, default to 'all-day'
     const tournamentParam = params.tournament;
@@ -88,7 +77,7 @@ export default async function LeaderboardPage({
                     {/* Day Tabs */}
                     <DayTabsWrapper />
                     
-                    {/* Tournament Tabs - Only show on Sunday */}
+                    {/* Tournament Tabs - Only show on Sunday (backward compatibility) */}
                     {day === 'sunday' && <TournamentTabsWrapper />}
                 </header>
 
