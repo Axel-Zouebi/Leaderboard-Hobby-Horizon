@@ -38,32 +38,40 @@ export default async function LeaderboardPage({
 }: {
     searchParams?: Promise<{ day?: string; tournament?: string; event?: string }> | { day?: string; tournament?: string; event?: string };
 }) {
-    // In Next.js 16, searchParams is a Promise that needs to be awaited
-    const params = searchParams instanceof Promise ? await searchParams : (searchParams || {});
-    
-    // Get event from URL params, default to 'rvnc-jan-24th'
-    const event: string = params.event || 'rvnc-jan-24th';
-    
-    // Get day from URL params
-    // For RVNC Jan 24th, don't filter by day (pass undefined)
-    // For Hobby Horizon, use day from params or default to current day
-    const dayParam = params.day;
-    const day: string | undefined = event === 'rvnc-jan-24th' 
-        ? undefined  // Don't filter by day for RVNC Jan 24th
-        : (dayParam || getCurrentDay());
+    try {
+        // In Next.js 16, searchParams is a Promise that needs to be awaited
+        const params = searchParams instanceof Promise ? await searchParams : (searchParams || {});
+        
+        // Get event from URL params, default to 'rvnc-jan-24th'
+        const event: string = params.event || 'rvnc-jan-24th';
+        
+        // Get day from URL params
+        // For RVNC Jan 24th, don't filter by day (pass undefined)
+        // For Hobby Horizon, use day from params or default to current day
+        const dayParam = params.day;
+        const day: string | undefined = event === 'rvnc-jan-24th' 
+            ? undefined  // Don't filter by day for RVNC Jan 24th
+            : (dayParam || getCurrentDay());
 
-    // Get tournament type from URL params, default to 'all-day'
-    // For RVNC Jan 24th, don't filter by tournament type
-    const tournamentParam = params.tournament;
-    const tournament_type: 'all-day' | 'special' | undefined = event === 'rvnc-jan-24th'
-        ? undefined  // Don't filter by tournament type for RVNC Jan 24th
-        : (tournamentParam === 'special' ? 'special' : 'all-day');
+        // Get tournament type from URL params, default to 'all-day'
+        // For RVNC Jan 24th, don't filter by tournament type
+        const tournamentParam = params.tournament;
+        const tournament_type: 'all-day' | 'special' | undefined = event === 'rvnc-jan-24th'
+            ? undefined  // Don't filter by tournament type for RVNC Jan 24th
+            : (tournamentParam === 'special' ? 'special' : 'all-day');
 
-    const players = await getPlayers(day, tournament_type, event);
+        let players;
+        try {
+            players = await getPlayers(day, tournament_type, event);
+        } catch (error) {
+            console.error('[Leaderboard] Error fetching players:', error);
+            // Return empty array on error to prevent crash
+            players = [];
+        }
 
-    // Split top 3 and the rest
-    const topPlayers = players.slice(0, 3);
-    const restPlayers = players.slice(3);
+        // Split top 3 and the rest
+        const topPlayers = players.slice(0, 3);
+        const restPlayers = players.slice(3);
 
     return (
         <main className="min-h-screen bg-slate-50 text-slate-900 p-4 sm:p-6 overflow-hidden relative">
@@ -110,4 +118,16 @@ export default async function LeaderboardPage({
             </div>
         </main>
     );
+    } catch (error) {
+        console.error('[Leaderboard] Server component error:', error);
+        // Return error UI instead of crashing
+        return (
+            <main className="min-h-screen bg-slate-50 text-slate-900 p-4 sm:p-6 overflow-hidden relative">
+                <div className="max-w-lg mx-auto h-full flex flex-col items-center justify-center">
+                    <h1 className="text-2xl font-bold mb-4">Error Loading Leaderboard</h1>
+                    <p className="text-slate-600">Please try refreshing the page.</p>
+                </div>
+            </main>
+        );
+    }
 }

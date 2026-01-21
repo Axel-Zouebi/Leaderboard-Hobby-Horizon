@@ -59,29 +59,38 @@ export default async function AdminPage({
 }: {
     searchParams?: Promise<{ day?: string; tournament?: string; event?: string }> | { day?: string; tournament?: string; event?: string };
 }) {
-    // In Next.js 16, searchParams is a Promise that needs to be awaited
-    const params = searchParams instanceof Promise ? await searchParams : (searchParams || {});
-    
-    // Get event from URL params, default to 'rvnc-jan-24th'
-    const event: string = params.event || 'rvnc-jan-24th';
-    
-    // Get day from URL params
-    // For RVNC Jan 24th, don't filter by day (pass undefined)
-    // For Hobby Horizon, use day from params or default to saturday
-    const dayParam = params.day;
-    const day: string | undefined = event === 'rvnc-jan-24th'
-        ? undefined  // Don't filter by day for RVNC Jan 24th
-        : (dayParam || 'saturday');
-    
-    // Get tournament type from URL params, default to 'all-day'
-    // For RVNC Jan 24th, don't filter by tournament type
-    const tournamentParam = params.tournament;
-    const tournament_type: 'all-day' | 'special' | undefined = event === 'rvnc-jan-24th'
-        ? undefined  // Don't filter by tournament type for RVNC Jan 24th
-        : (tournamentParam === 'special' ? 'special' : 'all-day');
-    
-    const players = await getPlayers(day, tournament_type, event);
-    const pendingWinners = await getPendingWinners(day, tournament_type, event);
+    try {
+        // In Next.js 16, searchParams is a Promise that needs to be awaited
+        const params = searchParams instanceof Promise ? await searchParams : (searchParams || {});
+        
+        // Get event from URL params, default to 'rvnc-jan-24th'
+        const event: string = params.event || 'rvnc-jan-24th';
+        
+        // Get day from URL params
+        // For RVNC Jan 24th, don't filter by day (pass undefined)
+        // For Hobby Horizon, use day from params or default to saturday
+        const dayParam = params.day;
+        const day: string | undefined = event === 'rvnc-jan-24th'
+            ? undefined  // Don't filter by day for RVNC Jan 24th
+            : (dayParam || 'saturday');
+        
+        // Get tournament type from URL params, default to 'all-day'
+        // For RVNC Jan 24th, don't filter by tournament type
+        const tournamentParam = params.tournament;
+        const tournament_type: 'all-day' | 'special' | undefined = event === 'rvnc-jan-24th'
+            ? undefined  // Don't filter by tournament type for RVNC Jan 24th
+            : (tournamentParam === 'special' ? 'special' : 'all-day');
+        
+        let players, pendingWinners;
+        try {
+            players = await getPlayers(day, tournament_type, event);
+            pendingWinners = await getPendingWinners(day, tournament_type, event);
+        } catch (error) {
+            console.error('[Admin] Error fetching data:', error);
+            // Return empty arrays on error to prevent crash
+            players = [];
+            pendingWinners = [];
+        }
 
     return (
         <main className="min-h-screen bg-black text-white p-8 font-sans">
@@ -277,4 +286,19 @@ export default async function AdminPage({
             </div>
         </main>
     );
+    } catch (error) {
+        console.error('[Admin] Server component error:', error);
+        // Return error UI instead of crashing
+        return (
+            <main className="min-h-screen bg-black text-white p-8 font-sans">
+                <div className="max-w-4xl mx-auto">
+                    <h1 className="text-3xl font-bold tracking-tight mb-4">Admin Dashboard</h1>
+                    <div className="glass-panel p-6">
+                        <h2 className="text-xl font-semibold mb-2 text-red-400">Error Loading Dashboard</h2>
+                        <p className="text-gray-400">Please try refreshing the page.</p>
+                    </div>
+                </div>
+            </main>
+        );
+    }
 }

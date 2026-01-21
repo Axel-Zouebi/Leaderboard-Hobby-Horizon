@@ -147,8 +147,9 @@ export const db = {
             
             if (tournament_type) {
                 query = query.eq('tournament_type', tournament_type);
-            } else if (day === 'sunday') {
+            } else if (day && day === 'sunday') {
                 // For Sunday, if no tournament_type specified, default to all-day for backward compatibility
+                // Only apply this if day is defined and is 'sunday'
                 query = query.or('tournament_type.is.null,tournament_type.eq.all-day');
             }
             
@@ -164,7 +165,7 @@ export const db = {
                     if (day) fallbackQuery = fallbackQuery.eq('day', day);
                     if (tournament_type) {
                         fallbackQuery = fallbackQuery.eq('tournament_type', tournament_type);
-                    } else if (day === 'sunday') {
+                    } else if (day && day === 'sunday') {
                         fallbackQuery = fallbackQuery.or('tournament_type.is.null,tournament_type.eq.all-day');
                     }
                     const { data: fallbackData, error: fallbackError } = await fallbackQuery.order('points', { ascending: false }).order('wins', { ascending: false });
@@ -239,8 +240,9 @@ export const db = {
             }
             if (tournament_type) {
                 players = players.filter(p => (p.tournament_type || 'all-day') === tournament_type);
-            } else if (day === 'sunday') {
+            } else if (day && day === 'sunday') {
                 // For Sunday, if no tournament_type specified, default to all-day for backward compatibility
+                // Only apply this if day is defined and is 'sunday'
                 players = players.filter(p => !p.tournament_type || p.tournament_type === 'all-day');
             }
             return players.sort((a, b) => {

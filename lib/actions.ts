@@ -8,20 +8,32 @@ import { getCurrentDay } from './utils';
 
 
 export async function getPlayers(day?: string, tournament_type?: 'all-day' | 'special', event?: string) {
-    console.log('Fetching players...', day ? `for ${day}` : 'for all days', tournament_type ? `(${tournament_type})` : '', event ? `event: ${event}` : '');
-    const players = await db.getPlayers(day, tournament_type, event);
+    try {
+        console.log('Fetching players...', day ? `for ${day}` : 'for all days', tournament_type ? `(${tournament_type})` : '', event ? `event: ${event}` : '');
+        const players = await db.getPlayers(day, tournament_type, event);
 
-    // Fetch fresh avatars
-    const userIds = players.map(p => p.robloxUserId);
-    if (userIds.length > 0) {
-        const avatarMap = await fetchBatchAvatars(userIds);
-        return players.map(p => ({
-            ...p,
-            avatarUrl: avatarMap[p.robloxUserId] || p.avatarUrl
-        }));
+        // Fetch fresh avatars (non-critical, so we continue even if it fails)
+        const userIds = players.map(p => p.robloxUserId);
+        if (userIds.length > 0) {
+            try {
+                const avatarMap = await fetchBatchAvatars(userIds);
+                return players.map(p => ({
+                    ...p,
+                    avatarUrl: avatarMap[p.robloxUserId] || p.avatarUrl
+                }));
+            } catch (avatarError) {
+                console.warn('[Actions] Error fetching avatars, returning players without updated avatars:', avatarError);
+                // Return players with existing avatars if batch fetch fails
+                return players;
+            }
+        }
+
+        return players;
+    } catch (error) {
+        console.error('[Actions] Error in getPlayers:', error);
+        // Return empty array on error to prevent crash
+        return [];
     }
-
-    return players;
 }
 
 export async function getPendingWinners(day?: string, tournament_type?: 'all-day' | 'special', event?: string) {
