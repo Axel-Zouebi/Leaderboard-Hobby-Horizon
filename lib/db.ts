@@ -17,6 +17,7 @@ export interface Player {
     createdAt: string;
     day: string; // Flexible day support - can be any day name
     tournament_type?: 'all-day' | 'special'; // Optional for backward compatibility
+    event?: string; // Event identifier (e.g., 'hobby-horizon', 'rvnc-jan-24th')
 }
 
 export interface PendingWinner {
@@ -118,11 +119,25 @@ function writeLocalPendingData(data: PendingWinner[]) {
 }
 
 export const db = {
-    getPlayers: async (day?: string, tournament_type?: 'all-day' | 'special'): Promise<Player[]> => {
+    getPlayers: async (day?: string, tournament_type?: 'all-day' | 'special', event?: string): Promise<Player[]> => {
         if (supabase) {
             let query = supabase
                 .from('players')
                 .select('*');
+            
+            // Filter by event if provided
+            if (event) {
+                if (event === 'hobby-horizon') {
+                    // For hobby-horizon, include players with event='hobby-horizon' OR event is null (old players)
+                    query = query.or('event.is.null,event.eq.hobby-horizon');
+                } else {
+                    // For other events (like rvnc-jan-24th), only show players with that exact event
+                    query = query.eq('event', event);
+                }
+            } else {
+                // If no event specified, default to 'rvnc-jan-24th' for new tournaments
+                query = query.eq('event', 'rvnc-jan-24th');
+            }
             
             if (day) {
                 query = query.eq('day', day);
@@ -148,6 +163,7 @@ export const db = {
                 createdAt: p.created_at,
                 day: p.day || 'saturday', // Default to saturday for migration
                 tournament_type: p.tournament_type || 'all-day', // Default to all-day for migration
+                event: p.event || 'rvnc-jan-24th', // Default to current event
             }));
             // Sort by points DESC, then wins DESC (Supabase order might not handle multiple sorts correctly)
             return players.sort((a, b) => {
@@ -157,6 +173,21 @@ export const db = {
         } else {
             // Local fallback
             let players = readLocalData();
+            
+            // Filter by event if provided
+            if (event) {
+                if (event === 'hobby-horizon') {
+                    // For hobby-horizon, include players with event='hobby-horizon' OR event is null/undefined (old players)
+                    players = players.filter(p => !p.event || p.event === 'hobby-horizon');
+                } else {
+                    // For other events (like rvnc-jan-24th), only show players with that exact event
+                    players = players.filter(p => p.event === event);
+                }
+            } else {
+                // If no event specified, default to 'rvnc-jan-24th' for new tournaments
+                players = players.filter(p => p.event === 'rvnc-jan-24th');
+            }
+            
             if (day) {
                 players = players.filter(p => p.day === day);
             }
@@ -300,7 +331,8 @@ export const db = {
                     avatar_url: player.avatarUrl,
                     created_at: player.createdAt,
                     day: player.day,
-                    tournament_type: player.tournament_type || 'all-day'
+                    tournament_type: player.tournament_type || 'all-day',
+                    event: player.event || 'rvnc-jan-24th'
                 }])
                 .select()
                 .single();

@@ -11,6 +11,10 @@ export function DayTabs() {
     const handleDayChange = (day: string) => {
         const params = new URLSearchParams(searchParams.toString());
         params.set('day', day);
+        // Preserve event parameter
+        if (!params.get('event')) {
+            params.set('event', 'hobby-horizon'); // Default to hobby-horizon for day tabs
+        }
         // Remove tournament param when switching away from Sunday (only Sunday has tournament types)
         if (day !== 'sunday') {
             params.delete('tournament');

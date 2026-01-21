@@ -55,6 +55,9 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'No players provided' }, { status: 400 });
         }
 
+        // Determine event: use webhook-provided event, or default to 'rvnc-jan-24th'
+        const event = (body.event as string) || 'rvnc-jan-24th';
+
         // Determine day: use webhook-provided day, or detect current day
         const webhookDay = body.day as string | undefined;
         const day = webhookDay ? getCurrentDay(webhookDay) : getCurrentDay();
@@ -169,6 +172,7 @@ export async function POST(request: Request) {
                     createdAt: new Date().toISOString(),
                     day: day,
                     tournament_type: tournament_type,
+                    event: event,
                 };
                 newPlayers.push({ player: newPlayer, userId: robloxUser.id.toString() });
                 userIdsToFetch.push(robloxUser.id.toString());

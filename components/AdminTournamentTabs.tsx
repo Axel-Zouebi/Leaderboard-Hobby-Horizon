@@ -11,6 +11,10 @@ export function AdminTournamentTabs() {
     const handleTournamentChange = (tournament: 'all-day' | 'special') => {
         const params = new URLSearchParams(searchParams.toString());
         params.set('tournament', tournament);
+        // Preserve event parameter
+        if (!params.get('event')) {
+            params.set('event', 'hobby-horizon'); // Default to hobby-horizon for tournament tabs
+        }
         router.push(`/admin?${params.toString()}`);
     };
 

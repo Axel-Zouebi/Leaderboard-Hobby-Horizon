@@ -3,6 +3,7 @@ import { db } from '@/lib/db';
 import GameControl from '@/components/GameControl';
 import { AdminDayTabs } from '@/components/AdminDayTabs';
 import { AdminTournamentTabs } from '@/components/AdminTournamentTabs';
+import { AdminEventMenu } from '@/components/AdminEventMenu';
 import ApprovePendingButton from '@/components/ApprovePendingButton';
 import Image from 'next/image';
 import { Trash2, Plus, Minus, UserPlus } from 'lucide-react';
@@ -56,10 +57,13 @@ function AdminTournamentTabsWrapper() {
 export default async function AdminPage({
     searchParams,
 }: {
-    searchParams?: Promise<{ day?: string; tournament?: string }> | { day?: string; tournament?: string };
+    searchParams?: Promise<{ day?: string; tournament?: string; event?: string }> | { day?: string; tournament?: string; event?: string };
 }) {
     // In Next.js 16, searchParams is a Promise that needs to be awaited
     const params = searchParams instanceof Promise ? await searchParams : (searchParams || {});
+    
+    // Get event from URL params, default to 'rvnc-jan-24th'
+    const event: string = params.event || 'rvnc-jan-24th';
     
     // Get day from URL params, default to current day
     const day: string = params.day || 'saturday';
@@ -68,7 +72,7 @@ export default async function AdminPage({
     const tournamentParam = params.tournament;
     const tournament_type: 'all-day' | 'special' = (tournamentParam === 'special' ? 'special' : 'all-day');
     
-    const players = await getPlayers(day, tournament_type);
+    const players = await getPlayers(day, tournament_type, event);
     const pendingWinners = await getPendingWinners(day, tournament_type);
 
     return (
@@ -76,22 +80,27 @@ export default async function AdminPage({
             <div className="max-w-4xl mx-auto space-y-8">
                 <header className="flex justify-between items-center">
                     <h1 className="text-3xl font-bold tracking-tight">Admin Dashboard</h1>
-                    <a href="/leaderboard" target="_blank" className="text-blue-400 hover:underline">
-                        View Leaderboard →
-                    </a>
+                    <div className="flex items-center gap-4">
+                        <AdminEventMenu />
+                        <a href="/leaderboard" target="_blank" className="text-blue-400 hover:underline">
+                            View Leaderboard →
+                        </a>
+                    </div>
                 </header>
 
                 {/* Game Control Section */}
                 <GameControl initialStatus={await db.getGameStatus()} />
 
-                {/* Day Selector */}
-                <div className="glass-panel p-4">
-                    <h2 className="text-lg font-semibold mb-4">Select Day</h2>
-                    <AdminDayTabsWrapper />
-                </div>
+                {/* Day Selector - Only show for Hobby Horizon event */}
+                {event === 'hobby-horizon' && (
+                    <div className="glass-panel p-4">
+                        <h2 className="text-lg font-semibold mb-4">Select Day</h2>
+                        <AdminDayTabsWrapper />
+                    </div>
+                )}
 
-                {/* Tournament Type Selector - Only show on Sunday (backward compatibility) */}
-                {day === 'sunday' && (
+                {/* Tournament Type Selector - Only show on Sunday for Hobby Horizon (backward compatibility) */}
+                {event === 'hobby-horizon' && day === 'sunday' && (
                     <div className="glass-panel p-4">
                         <h2 className="text-lg font-semibold mb-4">Select Tournament Type</h2>
                         <AdminTournamentTabsWrapper />
@@ -116,6 +125,11 @@ export default async function AdminPage({
                             name="day"
                             type="hidden"
                             value={day}
+                        />
+                        <input
+                            name="event"
+                            type="hidden"
+                            value={event}
                         />
                         {day === 'sunday' && (
                             <input

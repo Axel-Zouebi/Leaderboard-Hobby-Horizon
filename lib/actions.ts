@@ -7,9 +7,9 @@ import { revalidatePath } from 'next/cache';
 import { getCurrentDay } from './utils';
 
 
-export async function getPlayers(day?: string, tournament_type?: 'all-day' | 'special') {
-    console.log('Fetching players...', day ? `for ${day}` : 'for all days', tournament_type ? `(${tournament_type})` : '');
-    const players = await db.getPlayers(day, tournament_type);
+export async function getPlayers(day?: string, tournament_type?: 'all-day' | 'special', event?: string) {
+    console.log('Fetching players...', day ? `for ${day}` : 'for all days', tournament_type ? `(${tournament_type})` : '', event ? `event: ${event}` : '');
+    const players = await db.getPlayers(day, tournament_type, event);
 
     // Fetch fresh avatars
     const userIds = players.map(p => p.robloxUserId);
@@ -96,6 +96,7 @@ export async function addPlayerAction(formData: FormData) {
     const username = formData.get('username') as string;
     let day = formData.get('day') as string;
     const tournament_type = formData.get('tournament_type') as 'all-day' | 'special' | null;
+    const event = formData.get('event') as string | null;
     
     if (!username) return;
     if (!day) {
@@ -120,6 +121,7 @@ export async function addPlayerAction(formData: FormData) {
         createdAt: new Date().toISOString(),
         day: day,
         tournament_type: day === 'sunday' ? (tournament_type || 'all-day') : undefined, // Use provided tournament_type for Sunday, undefined for Saturday
+        event: event || 'rvnc-jan-24th', // Default to current event
     };
 
     await db.addPlayer(newPlayer);

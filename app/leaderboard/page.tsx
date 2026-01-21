@@ -4,6 +4,7 @@ import { TopPodium } from '../../components/TopPodium';
 import { AutoRefresh } from '../../components/AutoRefresh';
 import { DayTabs } from '../../components/DayTabs';
 import { TournamentTabs } from '../../components/TournamentTabs';
+import { EventMenu } from '../../components/EventMenu';
 import { getCurrentDay } from '../../lib/utils';
 import { Suspense } from 'react';
 
@@ -35,12 +36,15 @@ function TournamentTabsWrapper() {
 export default async function LeaderboardPage({
     searchParams,
 }: {
-    searchParams?: Promise<{ day?: string; tournament?: string }> | { day?: string; tournament?: string };
+    searchParams?: Promise<{ day?: string; tournament?: string; event?: string }> | { day?: string; tournament?: string; event?: string };
 }) {
     // In Next.js 16, searchParams is a Promise that needs to be awaited
     const params = searchParams instanceof Promise ? await searchParams : (searchParams || {});
     
-    // Get day from URL params, default to current day
+    // Get event from URL params, default to 'rvnc-jan-24th'
+    const event: string = params.event || 'rvnc-jan-24th';
+    
+    // Get day from URL params, default to current day (only used for hobby-horizon)
     const dayParam = params.day;
     const day: string = dayParam || getCurrentDay();
 
@@ -48,7 +52,7 @@ export default async function LeaderboardPage({
     const tournamentParam = params.tournament;
     const tournament_type: 'all-day' | 'special' = (tournamentParam === 'special' ? 'special' : 'all-day');
 
-    const players = await getPlayers(day, tournament_type);
+    const players = await getPlayers(day, tournament_type, event);
 
     // Split top 3 and the rest
     const topPlayers = players.slice(0, 3);
@@ -71,14 +75,14 @@ export default async function LeaderboardPage({
                             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6" /></svg>
                         </button>
                         <h1 className="text-xl font-bold tracking-tight uppercase">Leaderboard</h1>
-                        <div className="w-10" /> {/* Spacer for centering */}
+                        <EventMenu />
                     </div>
 
-                    {/* Day Tabs */}
-                    <DayTabsWrapper />
+                    {/* Day Tabs - Only show for Hobby Horizon event */}
+                    {event === 'hobby-horizon' && <DayTabsWrapper />}
                     
-                    {/* Tournament Tabs - Only show on Sunday (backward compatibility) */}
-                    {day === 'sunday' && <TournamentTabsWrapper />}
+                    {/* Tournament Tabs - Only show on Sunday for Hobby Horizon (backward compatibility) */}
+                    {event === 'hobby-horizon' && day === 'sunday' && <TournamentTabsWrapper />}
                 </header>
 
                 <div className="flex-1 flex flex-col">
