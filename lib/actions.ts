@@ -119,6 +119,12 @@ export async function addPlayerAction(formData: FormData) {
         // For RVNC Jan 24th, allow day to be null/undefined
         // For Hobby Horizon, default to current day if not provided
         const currentEvent = event || 'rvnc-jan-24th';
+        
+        // Convert empty string to null
+        if (day === '') {
+            day = null;
+        }
+        
         if (!day && currentEvent === 'hobby-horizon') {
             day = getCurrentDay();
         }
