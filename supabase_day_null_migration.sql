@@ -9,14 +9,22 @@
 ALTER TABLE players
 DROP CONSTRAINT IF EXISTS players_day_check;
 
--- Step 2: Add a new constraint that allows NULL (for RVNC Jan 24th) or valid day values
+-- Step 2: Alter the day column to allow NULL values
+-- This removes the NOT NULL constraint
+ALTER TABLE players
+ALTER COLUMN day DROP NOT NULL;
+
+-- Step 3: Add a new constraint that allows NULL (for RVNC Jan 24th) or valid day values
 ALTER TABLE players
 ADD CONSTRAINT players_day_check 
 CHECK (day IS NULL OR day IN ('saturday', 'sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday'));
 
--- Step 3: Do the same for pending_winners table if it exists
+-- Step 4: Do the same for pending_winners table if it exists
 ALTER TABLE pending_winners
 DROP CONSTRAINT IF EXISTS pending_winners_day_check;
+
+ALTER TABLE pending_winners
+ALTER COLUMN day DROP NOT NULL;
 
 ALTER TABLE pending_winners
 ADD CONSTRAINT pending_winners_day_check 
