@@ -5,6 +5,7 @@ import { AdminDayTabs } from '@/components/AdminDayTabs';
 import { AdminTournamentTabs } from '@/components/AdminTournamentTabs';
 import { AdminEventMenu } from '@/components/AdminEventMenu';
 import ApprovePendingButton from '@/components/ApprovePendingButton';
+import { getCurrentDay } from '@/lib/utils';
 import Image from 'next/image';
 import { Trash2, Plus, Minus, UserPlus } from 'lucide-react';
 import { Suspense } from 'react';
@@ -139,7 +140,7 @@ export default async function AdminPage({
                 <div className="glass-panel p-6">
                         <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
                         <UserPlus className="w-5 h-5" />
-                        Add Player ({day.charAt(0).toUpperCase() + day.slice(1)}{day === 'sunday' ? ` - ${tournament_type === 'all-day' ? 'All Day' : 'Special'}` : ''})
+                        Add Player ({day ? (day.charAt(0).toUpperCase() + day.slice(1)) : event.charAt(0).toUpperCase() + event.slice(1)}{day === 'sunday' ? ` - ${tournament_type === 'all-day' ? 'All Day' : 'Special'}` : ''})
                     </h2>
                     <form action={addPlayerAction} className="flex gap-4">
                         <input
@@ -152,7 +153,7 @@ export default async function AdminPage({
                         <input
                             name="day"
                             type="hidden"
-                            value={day}
+                            value={day || getCurrentDay()}
                         />
                         <input
                             name="event"
@@ -180,7 +181,7 @@ export default async function AdminPage({
                     <div className="space-y-4">
                         <h2 className="text-red-400 text-xl font-bold flex items-center gap-2">
                             <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
-                            Pending Approvals ({pendingWinners.length}) - {day.charAt(0).toUpperCase() + day.slice(1)}{day === 'sunday' ? ` (${tournament_type === 'all-day' ? 'All Day' : 'Special'})` : ''}
+                            Pending Approvals ({pendingWinners.length}) - {day ? (day.charAt(0).toUpperCase() + day.slice(1)) : event.charAt(0).toUpperCase() + event.slice(1)}{day === 'sunday' ? ` (${tournament_type === 'all-day' ? 'All Day' : 'Special'})` : ''}
                         </h2>
                         {pendingWinners.map((pending) => (
                             <div key={`${pending.username}-${pending.day}`} className="glass p-4 rounded-xl flex items-center gap-4 border-l-4 border-l-red-500 bg-red-500/5">
@@ -219,7 +220,7 @@ export default async function AdminPage({
                 {/* Player List */}
                 <div className="space-y-4">
                     <h2 className="text-white/50 text-sm font-semibold uppercase tracking-wider">
-                        Registered Players - {day.charAt(0).toUpperCase() + day.slice(1)}{day === 'sunday' ? ` (${tournament_type === 'all-day' ? 'All Day' : 'Special'})` : ''}
+                        Registered Players - {day ? (day.charAt(0).toUpperCase() + day.slice(1)) : event.charAt(0).toUpperCase() + event.slice(1)}{day === 'sunday' ? ` (${tournament_type === 'all-day' ? 'All Day' : 'Special'})` : ''}
                     </h2>
                     {players.map((player) => (
                         <div key={player.id} className="glass p-4 rounded-xl flex items-center gap-4">
