@@ -105,41 +105,64 @@ export async function approvePendingWinnerAction(username: string, day: string, 
 }
 
 export async function addPlayerAction(formData: FormData) {
-    const username = formData.get('username') as string;
-    let day = formData.get('day') as string;
-    const tournament_type = formData.get('tournament_type') as 'all-day' | 'special' | null;
-    const event = formData.get('event') as string | null;
-    
-    if (!username) return;
-    if (!day) {
-        // Default to current day if not provided
-        day = getCurrentDay();
+    try {
+        const username = formData.get('username') as string;
+        let day = formData.get('day') as string | null;
+        const tournament_type = formData.get('tournament_type') as 'all-day' | 'special' | null;
+        const event = formData.get('event') as string | null;
+        
+        if (!username) {
+            console.error('[addPlayerAction] No username provided');
+            return { success: false, error: 'Username is required' };
+        }
+
+        // For RVNC Jan 24th, allow day to be null/undefined
+        // For Hobby Horizon, default to current day if not provided
+        const currentEvent = event || 'rvnc-jan-24th';
+        if (!day && currentEvent === 'hobby-horizon') {
+            day = getCurrentDay();
+        }
+
+        // Use retry logic for consistency with approvePendingWinnerAction
+        const robloxUser = await fetchRobloxUser(username, 3); // 3 retries with exponential backoff
+        if (!robloxUser) {
+            console.error(`[addPlayerAction] Failed to fetch Roblox user for ${username}`);
+            return { success: false, error: `Could not find Roblox user: ${username}` };
+        }
+
+        let avatarUrl = '';
+        try {
+            avatarUrl = await fetchRobloxAvatar(robloxUser.id, 2); // 2 retries
+        } catch (error) {
+            console.warn(`[addPlayerAction] Failed to fetch avatar for ${username}, continuing without avatar:`, error);
+            // Continue without avatar
+        }
+
+        const newPlayer: Player = {
+            id: uuidv4(),
+            robloxUserId: robloxUser.id.toString(),
+            username: robloxUser.name,
+            displayname: robloxUser.displayName,
+            wins: 0,
+            points: 0,
+            avatarUrl: avatarUrl || '', // Fallback or placeholder
+            createdAt: new Date().toISOString(),
+            day: day || undefined, // Allow null/undefined for RVNC Jan 24th
+            tournament_type: day === 'sunday' ? (tournament_type || 'all-day') : undefined, // Use provided tournament_type for Sunday, undefined for Saturday
+            event: currentEvent,
+        };
+
+        await db.addPlayer(newPlayer);
+
+        revalidatePath('/admin');
+        revalidatePath('/leaderboard');
+        
+        return { success: true };
+    } catch (error) {
+        console.error('[addPlayerAction] Error adding player:', error);
+        const errorMessage = error instanceof Error ? error.message : 'An unexpected error occurred';
+        return { success: false, error: errorMessage };
     }
-
-    // Use retry logic for consistency with approvePendingWinnerAction
-    const robloxUser = await fetchRobloxUser(username, 3); // 3 retries with exponential backoff
-    if (!robloxUser) return;
-
-    const avatarUrl = await fetchRobloxAvatar(robloxUser.id, 2); // 2 retries
-
-    const newPlayer: Player = {
-        id: uuidv4(),
-        robloxUserId: robloxUser.id.toString(),
-        username: robloxUser.name,
-        displayname: robloxUser.displayName,
-        wins: 0,
-        points: 0,
-        avatarUrl: avatarUrl || '', // Fallback or placeholder
-        createdAt: new Date().toISOString(),
-        day: day,
-        tournament_type: day === 'sunday' ? (tournament_type || 'all-day') : undefined, // Use provided tournament_type for Sunday, undefined for Saturday
-        event: event || 'rvnc-jan-24th', // Default to current event
-    };
-
-    await db.addPlayer(newPlayer);
-
-    revalidatePath('/admin');
-    revalidatePath('/leaderboard');
 }
 
 export async function deletePlayerAction(id: string) {

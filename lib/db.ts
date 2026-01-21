@@ -446,10 +446,10 @@ export const db = {
                 displayname: player.displayname,
                 wins: player.wins || 0,
                 points: player.points || 0,
-                avatar_url: player.avatarUrl,
+                avatar_url: player.avatarUrl || '',
                 created_at: player.createdAt,
-                day: player.day,
-                tournament_type: player.tournament_type || 'all-day',
+                day: player.day || null, // Allow null for RVNC Jan 24th
+                tournament_type: player.tournament_type || null, // Allow null for RVNC Jan 24th
             };
             
             // Only include event if column exists (will be added if migration runs)
@@ -473,9 +473,13 @@ export const db = {
                         .insert([insertData])
                         .select()
                         .single();
-                    if (retryError) throw retryError;
+                    if (retryError) {
+                        console.error('[DB] Error inserting player after retry:', retryError);
+                        throw retryError;
+                    }
                     return player; // Return input player with event field
                 }
+                console.error('[DB] Error inserting player:', error);
                 throw error;
             }
             return player; // Return input for simplicity, or map result
