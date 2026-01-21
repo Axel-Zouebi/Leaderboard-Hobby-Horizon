@@ -126,9 +126,11 @@ export const db = {
                 .select('*');
             
             // Filter by event if provided
+            // Note: If event column doesn't exist, this will fail and be caught by error handling below
             if (event) {
                 if (event === 'hobby-horizon') {
                     // For hobby-horizon, include players with event='hobby-horizon' OR event is null (old players)
+                    // Using PostgREST OR syntax: field.is.null,field.eq.value
                     query = query.or('event.is.null,event.eq.hobby-horizon');
                 } else {
                     // For other events (like rvnc-jan-24th), only show players with that exact event
@@ -151,7 +153,41 @@ export const db = {
             }
             
             const { data, error } = await query.order('points', { ascending: false }).order('wins', { ascending: false });
-            if (error) throw error;
+            if (error) {
+                // If event column doesn't exist, fall back to filtering without event
+                if (error.message?.includes('event') || error.code === '42703') {
+                    console.warn('[DB] Event column may not exist, falling back to no event filter:', error.message);
+                    // Retry query without event filter
+                    let fallbackQuery = supabase.from('players').select('*');
+                    if (day) fallbackQuery = fallbackQuery.eq('day', day);
+                    if (tournament_type) {
+                        fallbackQuery = fallbackQuery.eq('tournament_type', tournament_type);
+                    } else if (day === 'sunday') {
+                        fallbackQuery = fallbackQuery.or('tournament_type.is.null,tournament_type.eq.all-day');
+                    }
+                    const { data: fallbackData, error: fallbackError } = await fallbackQuery.order('points', { ascending: false }).order('wins', { ascending: false });
+                    if (fallbackError) throw fallbackError;
+                    // Filter in memory for hobby-horizon (all old players) or return empty for rvnc-jan-24th
+                    const filteredData = event === 'hobby-horizon' ? (fallbackData || []) : [];
+                    return (filteredData || []).map((p: any) => ({
+                        id: p.id,
+                        robloxUserId: p.roblox_user_id,
+                        username: p.username,
+                        displayname: p.displayname,
+                        wins: p.wins || 0,
+                        points: p.points || 0,
+                        avatarUrl: p.avatar_url,
+                        createdAt: p.created_at,
+                        day: p.day || 'saturday',
+                        tournament_type: p.tournament_type || 'all-day',
+                        event: p.event || 'hobby-horizon',
+                    })).sort((a, b) => {
+                        if (b.points !== a.points) return b.points - a.points;
+                        return b.wins - a.wins;
+                    });
+                }
+                throw error;
+            }
             const players = (data || []).map((p: any) => ({
                 id: p.id,
                 robloxUserId: p.roblox_user_id,
@@ -319,24 +355,45 @@ export const db = {
 
     addPlayer: async (player: Player): Promise<Player> => {
         if (supabase) {
+            const insertData: any = {
+                id: player.id,
+                roblox_user_id: player.robloxUserId,
+                username: player.username,
+                displayname: player.displayname,
+                wins: player.wins || 0,
+                points: player.points || 0,
+                avatar_url: player.avatarUrl,
+                created_at: player.createdAt,
+                day: player.day,
+                tournament_type: player.tournament_type || 'all-day',
+            };
+            
+            // Only include event if column exists (will be added if migration runs)
+            // If column doesn't exist, Supabase will ignore it
+            if (player.event) {
+                insertData.event = player.event;
+            }
+            
             const { data, error } = await supabase
                 .from('players')
-                .insert([{
-                    id: player.id,
-                    roblox_user_id: player.robloxUserId,
-                    username: player.username,
-                    displayname: player.displayname,
-                    wins: player.wins || 0,
-                    points: player.points || 0,
-                    avatar_url: player.avatarUrl,
-                    created_at: player.createdAt,
-                    day: player.day,
-                    tournament_type: player.tournament_type || 'all-day',
-                    event: player.event || 'rvnc-jan-24th'
-                }])
+                .insert([insertData])
                 .select()
                 .single();
-            if (error) throw error;
+            if (error) {
+                // If event column doesn't exist, try without it
+                if (error.message?.includes('event') || error.code === '42703') {
+                    console.warn('[DB] Event column may not exist, inserting without event field');
+                    delete insertData.event;
+                    const { data: retryData, error: retryError } = await supabase
+                        .from('players')
+                        .insert([insertData])
+                        .select()
+                        .single();
+                    if (retryError) throw retryError;
+                    return player; // Return input player with event field
+                }
+                throw error;
+            }
             return player; // Return input for simplicity, or map result
         } else {
             const players = readLocalData();
