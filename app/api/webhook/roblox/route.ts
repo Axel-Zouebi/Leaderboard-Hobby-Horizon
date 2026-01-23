@@ -109,7 +109,7 @@ export async function POST(request: Request) {
 
             // Rate limit: 100ms delay between user search requests
             if (i > 0) {
-                await new Promise(resolve => setTimeout(resolve, 100));
+                await new Promise(resolve => setTimeout(resolve, 500));
             }
 
             const robloxUser = await fetchRobloxUser(username, 3);
