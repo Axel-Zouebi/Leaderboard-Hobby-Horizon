@@ -6,13 +6,6 @@ import { getCurrentDay, getTournamentType } from '@/lib/utils';
 import { fetchRobloxUser, fetchBatchAvatars } from '@/lib/roblox';
 import { v4 as uuidv4 } from 'uuid';
 
-// Helper function to wait with logging for rate limiting
-const wait = async (seconds: number) => {
-    console.log(`[Webhook] Waiting ${seconds} seconds before next request...`);
-    await new Promise(resolve => setTimeout(resolve, seconds * 1000));
-    console.log(`[Webhook] Wait complete, proceeding...`);
-};
-
 export async function POST(request: Request) {
     try {
         const body = await request.json();
@@ -114,9 +107,9 @@ export async function POST(request: Request) {
                 continue;
             }
 
-            // Rate limit: delay between user search requests to avoid 429 errors
+            // Rate limit: 100ms delay between user search requests
             if (i > 0) {
-                await wait(10);
+                await new Promise(resolve => setTimeout(resolve, 10000));
             }
 
             const robloxUser = await fetchRobloxUser(username, 3);
