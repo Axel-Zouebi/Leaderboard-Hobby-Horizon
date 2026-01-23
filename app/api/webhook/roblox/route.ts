@@ -3,7 +3,15 @@ import { NextResponse } from 'next/server';
 import { db, Player } from '@/lib/db';
 import { revalidatePath } from 'next/cache';
 import { getCurrentDay, getTournamentType } from '@/lib/utils';
+import { fetchRobloxUser, fetchBatchAvatars } from '@/lib/roblox';
 import { v4 as uuidv4 } from 'uuid';
+
+// Helper function to wait with logging for rate limiting
+const wait = async (seconds: number) => {
+    console.log(`[Webhook] Waiting ${seconds} seconds before next request...`);
+    await new Promise(resolve => setTimeout(resolve, seconds * 1000));
+    console.log(`[Webhook] Wait complete, proceeding...`);
+};
 
 export async function POST(request: Request) {
     try {
@@ -88,21 +96,60 @@ export async function POST(request: Request) {
             10: 10
         };
 
-        // Process players: create/update records with placeholder data
-        // Roblox user data and avatars will be fetched by background cron job
-        console.log(`[Webhook] Processing ${players.length} players...`);
-        const existingPlayers = await db.getPlayers(day, tournament_type, event);
-        const playersToUpdate: Array<{ id: string; wins: number; points: number }> = [];
-        const newPlayers: Player[] = [];
+        // Phase 1: Collect user data for all players (with rate limiting)
+        console.log(`[Webhook] Phase 1: Fetching user data for ${players.length} players...`);
+        const playerData: Array<{
+            username: string;
+            rank: number;
+            robloxUser: { id: number; name: string; displayName: string } | null;
+            pointsToAdd: number;
+            winsToAdd: number;
+        }> = [];
 
-        for (const { username, rank } of players) {
+        for (let i = 0; i < players.length; i++) {
+            const { username, rank } = players[i];
+            
             if (!username || typeof username !== 'string') {
                 console.warn(`[Webhook] Invalid username for rank ${rank}, skipping`);
                 continue;
             }
 
+            // Rate limit: delay between user search requests to avoid 429 errors
+            if (i > 0) {
+                await wait(10);
+            }
+
+            const robloxUser = await fetchRobloxUser(username, 3);
             const pointsToAdd = pointsByRank[rank] || 0;
             const winsToAdd = rank === 1 ? 1 : 0;
+
+            playerData.push({
+                username,
+                rank,
+                robloxUser,
+                pointsToAdd,
+                winsToAdd
+            });
+
+            if (robloxUser) {
+                console.log(`[Webhook] Fetched user data for ${username} (ID: ${robloxUser.id})`);
+            } else {
+                console.warn(`[Webhook] Failed to fetch user data for ${username}, will skip`);
+            }
+        }
+
+        // Phase 2: Check existing players and create new ones
+        console.log(`[Webhook] Phase 2: Creating/updating player records...`);
+        const existingPlayers = await db.getPlayers(day, tournament_type);
+        const playersToUpdate: Array<{ id: string; wins: number; points: number }> = [];
+        const newPlayers: Array<{ player: Player; userId: string }> = [];
+        const userIdsToFetch: string[] = [];
+
+        for (const { username, robloxUser, pointsToAdd, winsToAdd } of playerData) {
+            if (!robloxUser) {
+                console.warn(`[Webhook] Skipping ${username} - failed to fetch Roblox user data`);
+                continue;
+            }
 
             const existingPlayer = existingPlayers.find(p => 
                 p.username.toLowerCase() === username.toLowerCase() && 
@@ -120,28 +167,54 @@ export async function POST(request: Request) {
                 });
                 console.log(`[Webhook] Will update existing player: ${username} - +${winsToAdd} wins, +${pointsToAdd} points`);
             } else {
-                // Create new player with placeholder data (will be updated by cron job)
+                // Create new player with placeholder avatar
                 const newPlayer: Player = {
                     id: uuidv4(),
-                    robloxUserId: 'pending', // Placeholder - will be updated by cron job
-                    username: username,
-                    displayname: username, // Temporary - will be updated by cron job
+                    robloxUserId: robloxUser.id.toString(),
+                    username: robloxUser.name,
+                    displayname: robloxUser.displayName,
                     wins: winsToAdd,
                     points: pointsToAdd,
-                    avatarUrl: '', // Empty - will be updated by cron job
+                    avatarUrl: '', // Placeholder - will be updated in Phase 3
                     createdAt: new Date().toISOString(),
                     day: day,
                     tournament_type: tournament_type,
                     event: event,
                 };
-                newPlayers.push(newPlayer);
-                console.log(`[Webhook] Will create new player: ${username} - ${winsToAdd} wins, ${pointsToAdd} points`);
+                newPlayers.push({ player: newPlayer, userId: robloxUser.id.toString() });
+                userIdsToFetch.push(robloxUser.id.toString());
+                console.log(`[Webhook] Will create new player: ${username} (ID: ${robloxUser.id}) - ${winsToAdd} wins, ${pointsToAdd} points`);
             }
         }
 
         // Create all new players immediately
-        for (const player of newPlayers) {
+        for (const { player } of newPlayers) {
             await db.addPlayer(player);
+        }
+
+        // Phase 3: Batch fetch avatars for all new players
+        console.log(`[Webhook] Phase 3: Batch fetching avatars for ${userIdsToFetch.length} new players...`);
+        let avatarMap: Record<string, string> = {};
+        if (userIdsToFetch.length > 0) {
+            try {
+                avatarMap = await fetchBatchAvatars(userIdsToFetch);
+                console.log(`[Webhook] Successfully fetched ${Object.keys(avatarMap).length} avatars via batch API`);
+            } catch (error) {
+                console.error(`[Webhook] Batch avatar fetch failed:`, error);
+                // Continue without avatars - players will have placeholder
+            }
+        }
+
+        // Phase 4: Update new players with avatars and update existing players' stats
+        console.log(`[Webhook] Phase 4: Updating player records...`);
+        
+        // Update new players with avatars
+        for (const { player, userId } of newPlayers) {
+            const avatarUrl = avatarMap[userId] || '';
+            if (avatarUrl) {
+                await db.updatePlayer(player.id, { avatarUrl });
+                console.log(`[Webhook] Updated avatar for ${player.username}`);
+            }
         }
 
         // Update existing players' stats
@@ -150,7 +223,6 @@ export async function POST(request: Request) {
         }
 
         console.log(`[Webhook] Successfully processed ${newPlayers.length} new players and updated ${playersToUpdate.length} existing players`);
-        console.log(`[Webhook] Note: Player avatars and Roblox data will be fetched by background cron job`);
 
         // Revalidate pages so UI updates immediately
         revalidatePath('/leaderboard');
