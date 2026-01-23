@@ -125,8 +125,20 @@ export async function addPlayerAction(formData: FormData) {
             day = null;
         }
         
-        if (!day && currentEvent === 'hobby-horizon') {
-            day = getCurrentDay();
+        // Set default day for events that need it
+        if (!day) {
+            if (currentEvent === 'hobby-horizon') {
+                day = getCurrentDay();
+            } else if (currentEvent === 'rvnc-jan-24th') {
+                // For RVNC Jan 24th, set to current day when adding from admin form
+                day = getCurrentDay();
+            }
+        }
+        
+        // Ensure day is always a string (required by Player interface)
+        // At this point, day should be set for both events, but TypeScript doesn't know that
+        if (!day) {
+            day = getCurrentDay(); // Fallback to current day if somehow still null
         }
 
         // Use retry logic for consistency with approvePendingWinnerAction
@@ -138,10 +150,24 @@ export async function addPlayerAction(formData: FormData) {
 
         let avatarUrl = '';
         try {
-            avatarUrl = await fetchRobloxAvatar(robloxUser.id, 2); // 2 retries
+            const fetchedAvatar = await fetchRobloxAvatar(robloxUser.id, 2); // 2 retries
+            avatarUrl = fetchedAvatar || ''; // Convert null to empty string
         } catch (error) {
             console.warn(`[addPlayerAction] Failed to fetch avatar for ${username}, continuing without avatar:`, error);
             // Continue without avatar
+        }
+
+        // Determine tournament_type
+        let finalTournamentType: 'all-day' | 'special' | undefined;
+        if (day === 'sunday') {
+            // For Sunday, use provided tournament_type or default to 'all-day'
+            finalTournamentType = tournament_type || 'all-day';
+        } else if (currentEvent === 'rvnc-jan-24th' && day) {
+            // For RVNC Jan 24th, set to 'all-day' when day is set
+            finalTournamentType = tournament_type || 'all-day';
+        } else {
+            // For Saturday or other cases, undefined
+            finalTournamentType = undefined;
         }
 
         const newPlayer: Player = {
@@ -153,8 +179,8 @@ export async function addPlayerAction(formData: FormData) {
             points: 0,
             avatarUrl: avatarUrl || '', // Fallback or placeholder
             createdAt: new Date().toISOString(),
-            day: day || undefined, // Allow null/undefined for RVNC Jan 24th
-            tournament_type: day === 'sunday' ? (tournament_type || 'all-day') : undefined, // Use provided tournament_type for Sunday, undefined for Saturday
+            day: day, // day is now guaranteed to be a string
+            tournament_type: finalTournamentType,
             event: currentEvent,
         };
 
