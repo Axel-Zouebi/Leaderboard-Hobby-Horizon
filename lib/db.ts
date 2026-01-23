@@ -496,7 +496,9 @@ export const db = {
             const dbUpdates: any = {};
             if (updates.wins !== undefined) dbUpdates.wins = updates.wins;
             if (updates.points !== undefined) dbUpdates.points = updates.points;
-            if (updates.avatarUrl) dbUpdates.avatar_url = updates.avatarUrl;
+            if (updates.avatarUrl !== undefined) dbUpdates.avatar_url = updates.avatarUrl;
+            if (updates.robloxUserId !== undefined) dbUpdates.roblox_user_id = updates.robloxUserId;
+            if (updates.displayname !== undefined) dbUpdates.displayname = updates.displayname;
             if (updates.day) dbUpdates.day = updates.day;
             if (updates.tournament_type !== undefined) dbUpdates.tournament_type = updates.tournament_type;
 
@@ -568,6 +570,72 @@ export const db = {
             }
             settings.status = status;
             fs.writeFileSync(SETTINGS_FILE, JSON.stringify(settings, null, 2));
+        }
+    },
+
+    getPlayersWithoutAvatars: async (): Promise<Player[]> => {
+        if (supabase) {
+            // Get players where avatar_url is empty/null or roblox_user_id is 'pending'
+            // Using PostgREST OR syntax: field.is.null,field.eq.value
+            const { data, error } = await supabase
+                .from('players')
+                .select('*')
+                .or('avatar_url.is.null,avatar_url.eq.,roblox_user_id.eq.pending')
+                .limit(1); // Only get one at a time for the cron job
+
+            if (error) {
+                // If the query fails, try a simpler approach - get all and filter in memory
+                console.warn('[DB] OR query failed, trying alternative approach:', error);
+                const { data: allData, error: allError } = await supabase
+                    .from('players')
+                    .select('*')
+                    .limit(100); // Get a reasonable batch
+                
+                if (allError) {
+                    console.error('[DB] Error fetching players without avatars:', allError);
+                    throw allError;
+                }
+
+                const filtered = (allData || []).filter((p: any) => 
+                    !p.avatar_url || p.avatar_url === '' || p.roblox_user_id === 'pending'
+                ).slice(0, 1);
+
+                return filtered.map((p: any) => ({
+                    id: p.id,
+                    robloxUserId: p.roblox_user_id,
+                    username: p.username,
+                    displayname: p.displayname,
+                    wins: p.wins || 0,
+                    points: p.points || 0,
+                    avatarUrl: p.avatar_url || '',
+                    createdAt: p.created_at,
+                    day: p.day || 'saturday',
+                    tournament_type: p.tournament_type || 'all-day',
+                    event: p.event || 'rvnc-jan-24th',
+                }));
+            }
+
+            return (data || []).map((p: any) => ({
+                id: p.id,
+                robloxUserId: p.roblox_user_id,
+                username: p.username,
+                displayname: p.displayname,
+                wins: p.wins || 0,
+                points: p.points || 0,
+                avatarUrl: p.avatar_url || '',
+                createdAt: p.created_at,
+                day: p.day || 'saturday',
+                tournament_type: p.tournament_type || 'all-day',
+                event: p.event || 'rvnc-jan-24th',
+            }));
+        } else {
+            // Local fallback
+            const players = readLocalData();
+            const playersWithoutAvatars = players.filter(p => 
+                !p.avatarUrl || p.avatarUrl === '' || p.robloxUserId === 'pending'
+            );
+            // Return only the first one
+            return playersWithoutAvatars.slice(0, 1);
         }
     }
 };
