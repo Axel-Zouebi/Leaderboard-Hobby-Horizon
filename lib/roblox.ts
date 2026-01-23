@@ -17,7 +17,8 @@ export async function fetchRobloxUser(username: string, retries: number = 3): Pr
     for (let attempt = 0; attempt < retries; attempt++) {
         try {
             if (attempt > 0) {
-                // Exponential backoff: wait 2s, 4s, 8s between retries
+                // Exponential backoff: wait 2s, 4s, 8s between retries for 5xx errors
+                // For 429 errors, we use longer delays (5s, 10s, 20s) - handled below
                 const delay = Math.min(2000 * Math.pow(2, attempt - 1), 8000);
                 console.log(`Retrying Roblox user fetch for ${username} (attempt ${attempt + 1}/${retries}) after ${delay}ms...`);
                 await new Promise(resolve => setTimeout(resolve, delay));
@@ -34,6 +35,37 @@ export async function fetchRobloxUser(username: string, retries: number = 3): Pr
             });
 
             if (!response.ok) {
+                // Handle 429 (Too Many Requests) errors with exponential backoff and Retry-After header
+                if (response.status === 429) {
+                    const retryAfterHeader = response.headers.get('Retry-After');
+                    let retryAfterSeconds: number | null = null;
+                    
+                    if (retryAfterHeader) {
+                        retryAfterSeconds = parseInt(retryAfterHeader, 10);
+                        if (isNaN(retryAfterSeconds)) {
+                            retryAfterSeconds = null;
+                        }
+                    }
+                    
+                    // Longer exponential backoff for 429 errors: 5s, 10s, 20s
+                    const exponentialBackoffDelay = Math.min(5000 * Math.pow(2, attempt), 20000);
+                    const delay = retryAfterSeconds 
+                        ? Math.max(retryAfterSeconds * 1000, exponentialBackoffDelay)
+                        : exponentialBackoffDelay;
+                    
+                    console.error(`Roblox API rate limit (429) for ${username} (attempt ${attempt + 1}/${retries})`);
+                    if (retryAfterSeconds) {
+                        console.log(`Retry-After header: ${retryAfterSeconds} seconds`);
+                    }
+                    console.log(`Will retry after ${delay}ms (${(delay / 1000).toFixed(1)}s)`);
+                    
+                    if (attempt < retries - 1) {
+                        await new Promise(resolve => setTimeout(resolve, delay));
+                        continue;
+                    }
+                    return null;
+                }
+                
                 console.error(`Roblox API error: ${response.status} ${response.statusText}`);
                 // If it's a server error (5xx), retry. Otherwise, don't retry
                 if (response.status >= 500 && attempt < retries - 1) {
